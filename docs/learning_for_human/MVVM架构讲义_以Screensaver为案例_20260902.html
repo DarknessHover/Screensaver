@@ -1,0 +1,1522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MVVM 架构讲义 · 以 Screensaver 为案例</title>
+<style>
+:root{
+  --paper:#F7F5F0; --card:#FFFFFF;
+  --ink:#1F2421; --ink-2:#4A534E; --ink-3:#7C857F;
+  --brand:#1E4638; --brand-2:#2E6B54; --brand-3:#E7EFE9; --brand-4:#C3D8CD;
+  --clay:#C0522B; --clay-2:#FBEBE3; --clay-3:#E8C4B2;
+  --gold:#8A6D2F; --gold-2:#F6EDD6; --gold-3:#E0CE9E;
+  --line:#DFDACE; --line-soft:#EDE8DE;
+  --code-bg:#15211C; --code-ink:#D8E0DA; --code-key:#8FBF9F;
+  --code-str:#E0A458; --code-com:#6F7F76;
+  --radius:14px; --radius-sm:9px;
+  --mono:"JetBrains Mono","SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:16.5px;line-height:1.85;
+  -webkit-font-smoothing:antialiased;}
+
+#progress{position:fixed;top:0;left:0;height:2.5px;width:0;
+  background:linear-gradient(90deg,var(--brand),var(--brand-2) 60%,var(--clay));
+  z-index:100;transition:width .1s linear;}
+
+.wrap{max-width:1320px;margin:0 auto;padding:0 28px;display:flex;gap:44px;align-items:flex-start;}
+aside{width:244px;flex:0 0 244px;position:sticky;top:0;padding:56px 0 80px;max-height:100vh;overflow-y:auto;}
+aside::-webkit-scrollbar{width:5px;}
+aside::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
+main{flex:1 1 auto;min-width:0;padding:56px 0 100px;max-width:900px;}
+
+.toc-label{font-size:11px;letter-spacing:.16em;color:var(--ink-3);text-transform:uppercase;margin-bottom:14px;font-weight:600;}
+.toc{list-style:none;margin:0;padding:0;border-left:1px solid var(--line);}
+.toc a{display:block;padding:6px 0 6px 15px;margin-left:-1px;border-left:2px solid transparent;
+  color:var(--ink-2);text-decoration:none;font-size:13.5px;line-height:1.5;transition:color .15s,border-color .15s;}
+.toc a:hover{color:var(--brand);}
+.toc a.active{color:var(--brand);border-left-color:var(--clay);font-weight:600;}
+.toc a.sub{padding-left:28px;font-size:12.5px;color:var(--ink-3);}
+
+.hero{padding:24px 0 52px;border-bottom:1px solid var(--line);margin-bottom:56px;}
+.hero .kicker{display:inline-block;font-size:11.5px;letter-spacing:.18em;color:var(--clay);font-weight:700;margin-bottom:22px;}
+.hero h1{font-size:44px;line-height:1.28;margin:0 0 10px;font-weight:700;letter-spacing:-.02em;}
+.hero h1 em{font-style:normal;color:var(--brand);}
+.hero .sub{font-size:19px;color:var(--ink-2);font-weight:300;margin:0 0 30px;line-height:1.65;}
+.hero .meta{display:flex;flex-wrap:wrap;gap:10px;font-size:12.5px;color:var(--ink-3);}
+.hero .meta span{background:var(--card);border:1px solid var(--line);padding:4px 12px;border-radius:100px;}
+.hero .abstract{margin-top:30px;padding:20px 24px;background:var(--brand-3);
+  border-radius:var(--radius);border-left:3px solid var(--brand);font-size:15px;color:var(--ink-2);line-height:1.8;}
+.hero .abstract b{color:var(--brand);}
+
+section{margin-bottom:76px;scroll-margin-top:40px;}
+.chapter-head{margin-bottom:34px;}
+.chapter-head .num{font-size:12px;letter-spacing:.2em;color:var(--clay);font-weight:700;display:block;margin-bottom:8px;}
+.chapter-head h2{font-size:31px;margin:0 0 12px;font-weight:700;letter-spacing:-.015em;line-height:1.35;}
+.chapter-head .lead{font-size:16.5px;color:var(--ink-2);margin:0;padding-left:16px;
+  border-left:2px solid var(--brand-4);line-height:1.8;}
+h3{font-size:21px;margin:44px 0 14px;font-weight:650;letter-spacing:-.01em;padding-bottom:9px;border-bottom:1px solid var(--line-soft);}
+h4{font-size:17px;margin:30px 0 10px;font-weight:650;color:var(--brand);}
+p{margin:0 0 16px;}
+strong{font-weight:650;}
+em.term{font-style:normal;font-weight:600;color:var(--brand);background:var(--gold-2);padding:1px 5px;border-radius:4px;}
+code.inline{font-family:var(--mono);font-size:.86em;background:var(--brand-3);color:var(--brand);
+  padding:2px 6px;border-radius:5px;border:1px solid var(--brand-4);}
+a{color:var(--brand-2);}
+
+figure{margin:30px 0 34px;}
+figure svg{display:block;width:100%;height:auto;}
+.fig-box{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px 20px 14px;}
+figcaption{font-size:13px;color:var(--ink-3);text-align:center;margin-top:12px;line-height:1.6;}
+figcaption b{color:var(--ink-2);font-weight:600;}
+
+.tbl-wrap{margin:26px 0 30px;overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:14.5px;background:var(--card);
+  border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
+thead th{background:var(--brand);color:#F2F5F3;text-align:left;padding:11px 15px;font-weight:600;font-size:13.5px;}
+tbody td{padding:11px 15px;border-top:1px solid var(--line-soft);vertical-align:top;line-height:1.7;}
+tbody tr:hover{background:#FCFBF8;}
+td code{font-family:var(--mono);font-size:.86em;color:var(--clay);background:var(--clay-2);padding:1px 5px;border-radius:4px;}
+.tbl-title{font-size:13px;color:var(--ink-3);margin-bottom:8px;font-weight:600;}
+
+.code{margin:24px 0 28px;border-radius:var(--radius);overflow:hidden;background:var(--code-bg);
+  border:1px solid #0D1713;box-shadow:0 2px 14px rgba(20,35,28,.14);}
+.code-bar{display:flex;align-items:center;gap:8px;padding:8px 14px;background:#0F1A15;border-bottom:1px solid #243029;}
+.code-dot{width:9px;height:9px;border-radius:50%;background:#31463C;}
+.code-file{font-family:var(--mono);font-size:11.5px;color:#7D9086;margin-left:4px;}
+.code-lang{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:#6F8A7C;border:1px solid #2C3F35;padding:1px 7px;border-radius:4px;letter-spacing:.08em;}
+.code pre{margin:0;padding:16px 18px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.72;color:var(--code-ink);}
+.code pre::-webkit-scrollbar{height:7px;}
+.code pre::-webkit-scrollbar-thumb{background:#2E423A;border-radius:4px;}
+.k{color:var(--code-key);} .s{color:var(--code-str);} .c{color:var(--code-com);font-style:italic;}
+.n{color:#C9D6CE;} .f{color:#9FC4E8;}
+
+.callout{margin:24px 0;padding:16px 20px 16px 18px;border-radius:var(--radius-sm);border-left:3px solid;font-size:15px;line-height:1.8;}
+.callout .ct{display:block;font-size:12px;font-weight:700;letter-spacing:.1em;margin-bottom:6px;text-transform:uppercase;}
+.callout p:last-child{margin-bottom:0;}
+.callout.key{background:var(--gold-2);border-color:var(--gold);} .callout.key .ct{color:var(--gold);}
+.callout.pit{background:var(--clay-2);border-color:var(--clay);} .callout.pit .ct{color:var(--clay);}
+.callout.rule{background:var(--brand-3);border-color:var(--brand);} .callout.rule .ct{color:var(--brand);}
+
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:26px 0;}
+.duo > div{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;}
+.duo h5{margin:0 0 10px;font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px;}
+.duo .badge{font-size:10.5px;padding:2px 8px;border-radius:100px;font-family:var(--mono);}
+.duo .bad{background:var(--clay-2);color:var(--clay);border:1px solid var(--clay-3);}
+.duo .good{background:var(--brand-3);color:var(--brand);border:1px solid var(--brand-4);}
+.duo p{font-size:14.5px;color:var(--ink-2);margin:0 0 8px;}
+.duo p:last-child{margin:0;}
+
+blockquote{margin:26px 0;padding:4px 0 4px 22px;border-left:3px solid var(--clay);color:var(--ink-2);font-size:16px;line-height:1.85;}
+blockquote cite{display:block;margin-top:8px;font-size:13px;color:var(--ink-3);font-style:normal;}
+
+.steps{counter-reset:st;margin:26px 0;list-style:none;padding:0;}
+.steps li{counter-increment:st;position:relative;padding:0 0 20px 46px;border-left:1px solid var(--line);margin-left:15px;}
+.steps li:last-child{border-left-color:transparent;padding-bottom:0;}
+.steps li::before{content:counter(st);position:absolute;left:-15px;top:0;width:30px;height:30px;border-radius:50%;
+  background:var(--brand);color:#F2F5F3;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:var(--mono);}
+.steps b{display:block;font-size:16px;margin-bottom:3px;color:var(--brand);}
+.steps span{font-size:15px;color:var(--ink-2);line-height:1.8;}
+
+.tree{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:18px 22px;margin:24px 0;font-family:var(--mono);font-size:13px;line-height:1.85;color:var(--ink-2);overflow-x:auto;}
+.tree b{color:var(--brand);font-weight:700;}
+.tree .dim{color:var(--ink-3);}
+.tree .hi{color:var(--clay);font-weight:700;}
+
+.gloss{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin:24px 0;}
+.gloss > div{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px 16px;}
+.gloss dt{font-weight:700;font-size:14.5px;color:var(--brand);margin-bottom:5px;}
+.gloss dd{margin:0;font-size:14px;color:var(--ink-2);line-height:1.7;}
+
+footer{margin-top:80px;padding-top:28px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-3);line-height:1.9;}
+footer .f-main{display:flex;flex-wrap:wrap;gap:6px 20px;margin-bottom:10px;}
+footer b{color:var(--ink-2);font-weight:600;}
+footer .note{color:#9AA29C;font-size:11px;}
+
+@media (max-width:1080px){aside{display:none;} .wrap{padding:0 22px;} main{max-width:100%;}
+  .hero h1{font-size:34px;} .duo{grid-template-columns:1fr;}}
+@media print{aside,#progress{display:none;} body{background:#fff;font-size:11pt;}
+  section{page-break-inside:avoid;} .code{box-shadow:none;}}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<div class="wrap">
+
+<aside>
+  <div class="toc-label">目录 · Contents</div>
+  <ul class="toc" id="toc">
+    <li><a href="#ch0">零 · 前提：架构不是分包</a></li>
+    <li><a href="#ch0-3" class="sub">0.3 你项目的同名包</a></li>
+    <li><a href="#ch0-4" class="sub">0.4 你学的 MVC 是混血</a></li>
+    <li><a href="#ch1">一 · MVC 的四个病灶</a></li>
+    <li><a href="#ch1-3" class="sub">1.3 分水岭</a></li>
+    <li><a href="#ch2">二 · MVVM 的解法</a></li>
+    <li><a href="#ch2-3" class="sub">2.3 状态容器三要素</a></li>
+    <li><a href="#ch2-4" class="sub">2.4 两个真实的坑</a></li>
+    <li><a href="#ch3">三 · 判据：代码放哪层</a></li>
+    <li><a href="#ch3-3" class="sub">3.3 三种传导机制</a></li>
+    <li><a href="#ch4">四 · Signals 是什么</a></li>
+    <li><a href="#ch4-3" class="sub">4.3 读即订阅</a></li>
+    <li><a href="#ch4-4" class="sub">4.4 层次定位</a></li>
+    <li><a href="#ch5">五 · 包怎么分</a></li>
+    <li><a href="#ch6">六 · 收束与自检</a></li>
+    <li><a href="#appx">附录 · 术语与索引</a></li>
+  </ul>
+</aside>
+
+<main>
+
+<header class="hero">
+  <span class="kicker">MVVM 架构讲义 · FOCUSED EDITION</span>
+  <h1>把状态从"会死的东西"<br><em>搬到活得下去的地方</em></h1>
+  <p class="sub">以 Screensaver（Android · Kotlin · Compose）为唯一案例，<br>从"为什么需要 MVVM"讲到"代码该放哪一层"，只讲这一条主线。</p>
+  <div class="meta">
+    <span>2026-09-02 编排</span>
+    <span>案例项目：Screensaver · 定时壁纸</span>
+    <span>技术栈：Kotlin · Compose M3 · StateFlow · Room</span>
+    <span>读者基线：熟悉 MVC，初学 MVVM</span>
+  </div>
+  <div class="abstract">
+    <b>本讲义只回答一个问题：一段代码，该放在哪里？</b><br>
+    为了答好它，我们需要先拆掉一个流行误解（架构 ≠ 分包），再理解 MVC 到底哪里疼，
+    然后看 MVVM 怎么一层一层地解开它，最后落到"状态传导的三种机制"和"目录怎么建"这两个每天都在用的动作上。
+  </div>
+</header>
+
+<!-- ==================== 第 0 章 ==================== -->
+<section id="ch0">
+  <div class="chapter-head">
+    <span class="num">第零章 · PREREQUISITE</span>
+    <h2>前提：架构不是分包</h2>
+    <p class="lead">这一章不教 MVVM，它负责拆掉一个几乎所有初学者都有、且会一直阻碍你理解架构的误解。跳过它，后面每一章都会学歪。</p>
+  </div>
+
+  <h3>0.1 一个听起来很对、实际很危险的定义</h3>
+
+  <blockquote>
+    "架构就是……将不同功能的代码放在不同的包中，让项目路径更加清爽，一目了然。"
+  </blockquote>
+
+  <p>这个定义的每一半都很讨喜：它具体、可操作、看得见摸得着。所以几乎所有人都会先接受它。</p>
+
+  <p><strong>问题在于：它描述的是架构带来的"副作用"，不是架构本身。</strong>把结果当成定义，你会得到一个非常糟糕的后果——</p>
+
+  <div class="callout pit">
+    <span class="ct">后果</span>
+    <p>你会开始用<b>"目录好不好看"来评价架构好坏</b>。于是你会花时间调整包的名字和层级，却对真正致命的东西（<b>谁 import 了谁</b>）视而不见。<br>
+    更糟的是：你会觉得"我项目结构挺规范的，架构应该没问题"——而此时架构可能已经烂透了。</p>
+  </div>
+
+  <h3>0.2 三个论证，拆掉这个定义</h3>
+
+  <h4>论证一｜同样的包结构，可以长出完全违反架构的代码</h4>
+
+  <p>假设你的项目保持现在的 <code class="inline">ui/</code>、<code class="inline">data/</code>、<code class="inline">domain/</code> 三包不动，我在界面文件里加两行：</p>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">反例：ui/screens/HomeScreen.kt（虚构，请勿模仿）</span>
+      <span class="code-lang">KOTLIN</span>
+    </div>
+<pre><code><span class="k">import</span> com.screensaver.data.local.AppDatabase   <span class="c">// ← View 直接摸数据库</span>
+
+<span class="k">@Composable</span>
+<span class="k">fun</span> <span class="f">HomeScreen</span>(...) {
+    <span class="k">val</span> db = AppDatabase.<span class="f">get</span>(LocalContext.current)
+    <span class="k">val</span> rules = db.<span class="f">ruleDao</span>().<span class="f">getAll</span>().<span class="f">collectAsState</span>(initial = emptyList())
+    <span class="c">// 界面里直接查库、直接算业务——目录一个字没改</span>
+}</code></pre>
+  </div>
+
+  <p>目录还是那么清爽，三个包的名字一个没动，<b>但架构已经死透了</b>：业务逻辑再也脱离不了界面测试，改一个数据库字段要动 UI，屏幕旋转还可能泄漏 Context。</p>
+
+  <h4>论证二｜不同的包结构，可以是同一个架构</h4>
+
+  <div class="duo">
+    <div>
+      <h5><span class="badge good">按层分</span></h5>
+<pre style="margin:0;background:transparent;font-size:12.5px;line-height:1.7">ui/screens/     HomeScreen
+ui/viewmodel/   HomeViewModel
+domain/         ScheduleEngine
+data/           Repository · Room</pre>
+    </div>
+    <div>
+      <h5><span class="badge good">按功能分</span></h5>
+<pre style="margin:0;background:transparent;font-size:12.5px;line-height:1.7">feature/home/   HomeScreen
+                HomeViewModel
+feature/editor/ RuleEditorScreen
+                RuleEditorViewModel
+core/domain/ · core/data/</pre>
+    </div>
+  </div>
+
+  <p>两种包结构<b>完全不同</b>，但架构<b>完全一样</b>。如果架构 = 分包，这就是两个架构了——显然不是。</p>
+
+  <h4>论证三｜架构真正的三条约束，没有一条跟"路径"有关</h4>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 0-1　架构的三条真约束</div>
+    <table>
+      <thead><tr><th style="width:16%">约束</th><th style="width:34%">它问的问题</th><th>违反时的症状</th></tr></thead>
+      <tbody>
+        <tr><td><b>依赖方向</b></td><td>这个包<b>允许 import 谁</b>？<b>禁止被谁 import</b>？</td><td>循环依赖；改一处崩一片；无法单独复用某个模块</td></tr>
+        <tr><td><b>变化边界</b></td><td>改一个需求，要动<b>几个地方</b>？</td><td>需求成本不可控；每次"小改动"都要回归全量测试</td></tr>
+        <tr><td><b>可测试性</b></td><td>这段逻辑能<b>脱离 UI / 框架</b>跑吗？</td><td>只能靠手点验证；改完不敢动；线上问题复现不了</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout key">
+    <span class="ct">一句话记住</span>
+    <p><b>「这个包能 import 什么、不能被谁 import」才是架构；「这个包叫什么名字」只是目录。</b><br>
+    目录是约束的<b>投影</b>。你盯着投影看，永远学不会架构。</p>
+  </div>
+
+  <h3 id="ch0-3">0.3 用你自己的项目验证：两个同名的包</h3>
+
+  <p>你的项目里恰好有一个绝佳的实例。我列包结构时发现——<b>你有两个都叫 <code class="inline">scheduler</code> 的包</b>：</p>
+
+  <div class="tree">
+com.screensaver
+├── <b>domain/scheduler/</b>   ScheduleEngine.kt        <span class="dim">← 纯函数</span>
+└── <b>scheduler/</b>          AlarmScheduler.kt
+                     WallpaperApplier.kt
+                     BootCompletedReceiver.kt
+                     ScreenOnReceiver.kt
+                     WallpaperSwitchReceiver.kt  <span class="dim">← 系统封装</span>
+  </div>
+
+  <p>按"路径清爽"的标准，这是脏的——<b>两个同名包，早该合并</b>。但它在架构上完全正确。看它们的 import 就知道为什么：</p>
+
+  <figure>
+    <div class="fig-box">
+    <svg viewBox="0 0 860 396" role="img" aria-label="两个同名 scheduler 包的 import 对比">
+      <defs>
+        <marker id="ok" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+          <path d="M0,0 L7,3.2 L0,6.4 Z" fill="#2E6B54"/>
+        </marker>
+        <marker id="no" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+          <path d="M0,0 L7,3.2 L0,6.4 Z" fill="#C0522B"/>
+        </marker>
+      </defs>
+      <g font-family="sans-serif">
+        <text x="30" y="26" font-size="14" font-weight="700" fill="#1E4638">domain/scheduler/ScheduleEngine.kt</text>
+        <rect x="30" y="40" width="380" height="150" rx="12" fill="#E7EFE9" stroke="#2E6B54" stroke-width="1.6"/>
+        <text x="52" y="68" font-size="12.5" font-weight="700" fill="#1E4638">import 清单（全文）</text>
+        <text x="52" y="94" font-size="12.5" fill="#4A534E" font-family="monospace">import ...entities.ScheduleRuleEntity</text>
+        <text x="52" y="116" font-size="12.5" fill="#4A534E" font-family="monospace">import ...entities.WallpaperDomain</text>
+        <text x="52" y="146" font-size="13" font-weight="700" fill="#2E6B54">android.* 的 import 数量： 0</text>
+        <text x="52" y="172" font-size="12" fill="#7C857F">→ 可以在普通 JVM 上直接单测</text>
+        <rect x="52" y="180" width="336" height="1" fill="#C3D8CD"/>
+        <text x="52" y="180" font-size="1" fill="#C3D8CD">.</text>
+
+        <text x="450" y="26" font-size="14" font-weight="700" fill="#C0522B">scheduler/AlarmScheduler.kt</text>
+        <rect x="450" y="40" width="380" height="150" rx="12" fill="#FBEBE3" stroke="#C0522B" stroke-width="1.6"/>
+        <text x="472" y="68" font-size="12.5" font-weight="700" fill="#A8451F">import 清单（节选）</text>
+        <text x="472" y="94" font-size="12.5" fill="#4A534E" font-family="monospace">import android.app.AlarmManager</text>
+        <text x="472" y="112" font-size="12.5" fill="#4A534E" font-family="monospace">import android.app.PendingIntent</text>
+        <text x="472" y="130" font-size="12.5" fill="#4A534E" font-family="monospace">import android.content.Context / Intent</text>
+        <text x="472" y="148" font-size="12.5" fill="#4A534E" font-family="monospace">import android.os.Build / android.util.Log</text>
+        <text x="472" y="176" font-size="13" font-weight="700" fill="#C0522B">android.* 的 import 数量： 7</text>
+
+        <!-- 结论条 -->
+        <rect x="30" y="216" width="800" height="62" rx="10" fill="#F6EDD6" stroke="#E0CE9E"/>
+        <text x="52" y="244" font-size="13.5" font-weight="700" fill="#8A6D2F">两个包同名，却绝不能合并</text>
+        <text x="52" y="266" font-size="12.5" fill="#4A534E">因为 <tspan font-family="monospace">domain/</tspan> 这个名字的真正含义是一条约束：<tspan font-weight="700">"这里不许 import 任何 android.*"</tspan></text>
+
+        <!-- 依赖箭头 -->
+        <text x="30" y="312" font-size="13" font-weight="700" fill="#1F2421">依赖方向（真实情况）</text>
+        <rect x="30" y="326" width="300" height="44" rx="8" fill="#FBEBE3" stroke="#C0522B"/>
+        <text x="180" y="354" text-anchor="middle" font-size="13" font-weight="700" fill="#A8451F">scheduler/（系统封装）</text>
+        <rect x="530" y="326" width="300" height="44" rx="8" fill="#E7EFE9" stroke="#2E6B54"/>
+        <text x="680" y="354" text-anchor="middle" font-size="13" font-weight="700" fill="#1E4638">domain/（纯函数）</text>
+        <path d="M334,348 L526,348" stroke="#2E6B54" stroke-width="2" marker-end="url(#ok)"/>
+        <text x="430" y="340" text-anchor="middle" font-size="11.5" fill="#2E6B54">可以依赖</text>
+        <path d="M526,368 L334,368" stroke="#C0522B" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#no)"/>
+        <text x="430" y="388" text-anchor="middle" font-size="11.5" fill="#C0522B">禁止反向</text>
+      </g>
+    </svg>
+    </div>
+    <figcaption><b>图 0-1</b>　两个同名包，import 清单天差地别。<b>包名相同不重要，依赖约束不同才重要</b>——若当初为"路径清爽"把它们合并，你今天就无法一眼看出哪部分能单测。</figcaption>
+  </figure>
+
+  <div class="callout rule">
+    <span class="ct">这一条怎么用在你的日常里</span>
+    <p>判断一个目录划分对不对，问一句就够：<b>"这个目录允许 import 什么？"</b> 答不上来 → 这个目录只是个文件夹，不是架构的一部分。<br>
+    反过来说：<b>如果哪天有人给 <code>ScheduleEngine</code> 加了一行 <code>import android.util.Log</code>，它就该立刻被移出 <code>domain/</code></b>——哪怕业务逻辑一行没改，架构也已经坏了。</p>
+  </div>
+
+  <h3 id="ch0-4">0.4 顺带纠正：你学的"MVC"其实是个混血</h3>
+
+  <p>你之前这样描述 MVC：<em>"Model 封装业务逻辑与数据访问（Service 调 DAO，DAO 管增删改查）"</em>。</p>
+
+  <p>这里塞了不属于 MVC 的东西。<b>经典 MVC 是表现层内部的组织方式</b>，它的 Model 是"数据 + 业务逻辑"，里面没有 Service 和 DAO 的位置。你说的 Service → DAO 是<b>三层架构</b>的东西。</p>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 0-2　两个被混为一谈的东西</div>
+    <table>
+      <thead><tr><th style="width:14%"></th><th style="width:26%">经典 MVC</th><th style="width:26%">三层架构</th><th>真实项目（Spring / FastAPI）</th></tr></thead>
+      <tbody>
+        <tr><td><b>管什么</b></td><td><b>表现层内部</b>怎么组织</td><td>整个应用<b>纵向</b>分几层</td><td><b>两者叠加</b></td></tr>
+        <tr><td><b>组成部分</b></td><td>View / Controller / Model</td><td>表现层 → 业务层 → 数据层</td><td>表现层里用 MVC 的命名，下面照三层来</td></tr>
+        <tr><td><b>"Model"是啥</b></td><td>数据 + 业务逻辑</td><td>—</td><td>退化成<b>传给视图的数据载体</b>（ModelAndView 里的那个 Model）</td></tr>
+        <tr><td><b>Service/DAO 在哪</b></td><td>不在 MVC 里</td><td>业务层 / 数据层</td><td>在 MVC 的<b>下面</b>，不在 MVC 的"Model"里</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout key">
+    <span class="ct">分清之后你能得到什么</span>
+    <p><b>你手里其实有两把尺子，别只用一把：</b><br>
+    ① <b>分层</b>管纵向深度（表现 → 业务 → 数据）——几乎任何项目都需要，无论你用什么 XVM；<br>
+    ② <b>MVC / MVVM</b> 管表现层内部怎么组织——只有界面复杂到一定程度才需要。<br>
+    它们是<b>正交</b>的。混淆这两把尺子，是很多人学架构时越学越乱的根源。</p>
+  </div>
+</section>
+
+<!-- ==================== 第 1 章 ==================== -->
+<section id="ch1">
+  <div class="chapter-head">
+    <span class="num">第一章 · CHAPTER Ⅰ</span>
+    <h2>MVC 的四个病灶</h2>
+    <p class="lead">架构是止痛药。不知道痛在哪，就不知道那一刀为什么切在那里。</p>
+  </div>
+
+  <h3>1.1 MVC 只规定了角色，没规定它们住哪</h3>
+
+  <p>MVC 的划分很朴素：<em class="term">Model</em> 是数据，<em class="term">View</em> 是显示，<em class="term">Controller</em> 是把用户动作翻译成数据操作的胶水。问题是——<b>它只说"有三个角色"，没说"这三个角色是否应该是三个对象"</b>。</p>
+
+  <p>在 Android 上，这个模糊被放大成灾难：Activity 天生既是 View（持有 <code class="inline">setContentView</code> 出来的那棵树），又是最自然的 Controller 落点（所有点击回调都注册在它身上）。于是它同时是三个角色。</p>
+
+  <figure>
+    <div class="fig-box">
+    <svg viewBox="0 0 900 430" role="img" aria-label="MVC 耦合与 MVVM 分层对比">
+      <defs>
+        <marker id="arc2" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+          <path d="M0,0 L7,3.2 L0,6.4 Z" fill="#C0522B"/>
+        </marker>
+        <marker id="arg2" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+          <path d="M0,0 L7,3.2 L0,6.4 Z" fill="#2E6B54"/>
+        </marker>
+      </defs>
+      <g font-family="sans-serif">
+        <text x="40" y="28" font-size="15" font-weight="700" fill="#C0522B">MVC：三个角色挤在一个对象里</text>
+        <rect x="40" y="46" width="370" height="300" rx="14" fill="#FBEBE3" stroke="#C0522B" stroke-width="1.6" stroke-dasharray="7 5"/>
+        <text x="58" y="72" font-size="12.5" fill="#A8451F">Activity / 页面组件 —— 会随旋转、刷新而销毁</text>
+
+        <rect x="64" y="88" width="322" height="58" rx="9" fill="#fff" stroke="#E8C4B2"/>
+        <text x="82" y="112" font-size="13.5" font-weight="700" fill="#1F2421">① 渲染</text>
+        <text x="82" y="132" font-size="12" fill="#7C857F">findViewById / 绑定监听器 / 改 DOM</text>
+
+        <rect x="64" y="160" width="322" height="58" rx="9" fill="#fff" stroke="#E8C4B2"/>
+        <text x="82" y="184" font-size="13.5" font-weight="700" fill="#1F2421">② 控制</text>
+        <text x="82" y="204" font-size="12" fill="#7C857F">点击处理 · 网络请求 · 业务判断</text>
+
+        <rect x="64" y="232" width="322" height="58" rx="9" fill="#fff" stroke="#E8C4B2"/>
+        <text x="82" y="256" font-size="13.5" font-weight="700" fill="#1F2421">③ 状态</text>
+        <text x="82" y="276" font-size="12" fill="#7C857F">成员变量存着"当前选中了谁"</text>
+
+        <path d="M368,117 C398,117 398,189 368,189" fill="none" stroke="#C0522B" stroke-width="1.5" marker-end="url(#arc2)"/>
+        <path d="M98,189 C68,189 68,117 98,117" fill="none" stroke="#C0522B" stroke-width="1.5" marker-end="url(#arc2)"/>
+        <path d="M368,189 C398,189 398,261 368,261" fill="none" stroke="#C0522B" stroke-width="1.5" marker-end="url(#arc2)"/>
+        <path d="M98,261 C68,261 68,189 98,189" fill="none" stroke="#C0522B" stroke-width="1.5" marker-end="url(#arc2)"/>
+        <text x="396" y="158" font-size="11.5" fill="#C0522B">互相直接引用</text>
+        <text x="396" y="174" font-size="11.5" fill="#C0522B">谁都能改谁</text>
+
+        <text x="40" y="372" font-size="12.5" fill="#4A534E">↑ Controller 直接改 View，View 顺手改状态</text>
+        <text x="40" y="392" font-size="12.5" fill="#4A534E">　  Activity 一销毁，②和③一起陪葬；想单测②，得先把整个页面跑起来</text>
+        <text x="40" y="416" font-size="12.5" fill="#4A534E">　  <tspan font-weight="700">没有边界 = 没有约束 = 没有架构</tspan></text>
+
+        <line x1="440" y1="20" x2="440" y2="416" stroke="#DFDACE"/>
+
+        <text x="470" y="28" font-size="15" font-weight="700" fill="#1E4638">MVVM：职责分层，状态独立存活</text>
+
+        <rect x="470" y="46" width="376" height="72" rx="10" fill="#E7EFE9" stroke="#2E6B54" stroke-width="1.6"/>
+        <text x="492" y="74" font-family="sans-serif"><tspan font-size="14" font-weight="700" fill="#1E4638">View</tspan><tspan font-size="12" fill="#7C857F">　（Activity / @Composable）</tspan></text>
+        <text x="492" y="98" font-size="12.5" fill="#4A534E">只渲染 · 只把用户动作转发上去</text>
+
+        <rect x="470" y="152" width="376" height="88" rx="10" fill="#1E4638" stroke="#1E4638"/>
+        <text x="492" y="180" font-size="14" font-weight="700" fill="#F2F5F3">ViewModel</text>
+        <text x="492" y="204" font-size="12.5" fill="#C3D8CD">· 持有 UI 状态（StateFlow）</text>
+        <text x="492" y="224" font-size="12.5" fill="#C3D8CD">· 编排业务逻辑 · 生命周期比 View 长</text>
+
+        <rect x="470" y="274" width="376" height="64" rx="10" fill="#fff" stroke="#C3D8CD" stroke-width="1.6"/>
+        <text x="492" y="300" font-size="14" font-weight="700" fill="#1E4638">Model 层</text>
+        <text x="492" y="322" font-size="12.5" fill="#4A534E">Repository → Room / 网络 / 系统服务</text>
+
+        <path d="M512,118 L512,148" stroke="#2E6B54" stroke-width="1.8" marker-end="url(#arg2)"/>
+        <text x="524" y="138" font-size="11.5" fill="#2E6B54">事件</text>
+        <path d="M804,148 L804,118" stroke="#2E6B54" stroke-width="1.8" marker-end="url(#arg2)"/>
+        <text x="806" y="138" font-size="11.5" fill="#2E6B54" text-anchor="end">状态</text>
+        <path d="M512,240 L512,270" stroke="#2E6B54" stroke-width="1.8" marker-end="url(#arg2)"/>
+        <text x="524" y="260" font-size="11.5" fill="#2E6B54">请求</text>
+        <path d="M804,270 L804,240" stroke="#2E6B54" stroke-width="1.8" marker-end="url(#arg2)"/>
+        <text x="806" y="260" font-size="11.5" fill="#2E6B54" text-anchor="end">数据</text>
+
+        <text x="470" y="372" font-size="12.5" fill="#4A534E">↑ 每层只跟紧邻的一层说话，方向固定</text>
+        <text x="470" y="392" font-size="12.5" fill="#4A534E">　  ViewModel 不认识任何 View 类 → 可脱离界面单测</text>
+        <text x="470" y="416" font-size="12.5" fill="#4A534E">　  <tspan font-weight="700">箭头从网状变成单向 = 架构成立的标志</tspan></text>
+      </g>
+    </svg>
+    </div>
+    <figcaption><b>图 1-1</b>　差别不在"多了一个 ViewModel"，而在<b>箭头从网状变成了单向</b>。这正是第 0 章说的"依赖方向"。</figcaption>
+  </figure>
+
+  <h3>1.2 四个病灶</h3>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 1-1　MVC 的四个病灶与共同根因</div>
+    <table>
+      <thead><tr><th style="width:14%">病灶</th><th style="width:38%">表现</th><th>根因</th></tr></thead>
+      <tbody>
+        <tr><td><b>上帝类</b></td><td>Activity 里既有 <code>findViewById</code> 又有 <code>onClick</code> 又有数据库查询，轻松 2000 行</td><td>View 与 Controller 无物理边界</td></tr>
+        <tr><td><b>状态易失</b></td><td>旋转屏幕 → Activity 重建 → 成员变量全没</td><td>状态寄存在"会死的东西"上</td></tr>
+        <tr><td><b>不可单测</b></td><td>要测业务逻辑，得起模拟器跑 instrumentation test</td><td>逻辑与渲染耦合在同一对象</td></tr>
+        <tr><td><b>同步靠人肉</b></td><td>改完数据要记得 <code>textView.text = ...</code>，漏一处就显示陈旧值</td><td>状态→UI 的映射由人工维护</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout key">
+    <span class="ct">四个病灶的共同根因</span>
+    <p><b>状态被放在了一个"既会死、又还要负责画画"的对象上。</b><br>
+    因为它会死 → 状态不安全；因为它在画画 → 逻辑没法脱离界面测试；因为两者混在一起 → 同步只能靠人记。</p>
+    <p>MVVM 的解法说穿了就一句：<b>把状态从这个对象里搬走，搬到一个不会随界面销毁而消失的地方。</b>后面所有设计（单向数据流、状态容器、数据绑定）都只为服务这一件事。</p>
+  </div>
+
+  <h3 id="ch1-3">1.3 分水岭：谁来触发界面更新</h3>
+
+  <p>这是从 MVC 跨到 MVVM <b>真正的门槛</b>，也是最容易被一句话带过的地方。</p>
+
+  <p>MVC 的定义里有一句：<em>"Controller 调用 Model 处理，并<strong>选择合适的 View 渲染结果</strong>"</em>。</p>
+
+  <p><b>这个"选择"的动作，在 MVVM 里被彻底消灭了。</b></p>
+
+  <figure>
+    <div class="fig-box">
+    <svg viewBox="0 0 860 372" role="img" aria-label="MVC 命令式刷新与 MVVM 自动更新的分水岭">
+      <defs>
+        <marker id="m1" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+          <path d="M0,0 L7,3.2 L0,6.4 Z" fill="#C0522B"/>
+        </marker>
+        <marker id="m2" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+          <path d="M0,0 L7,3.2 L0,6.4 Z" fill="#2E6B54"/>
+        </marker>
+      </defs>
+      <g font-family="sans-serif">
+        <!-- 上半 MVC -->
+        <rect x="20" y="16" width="820" height="152" rx="12" fill="#FBEBE3" stroke="#E8C4B2"/>
+        <text x="40" y="42" font-size="14" font-weight="700" fill="#A8451F">MVC：Controller 主动"选择"并"刷新"</text>
+
+        <rect x="40" y="58" width="150" height="46" rx="8" fill="#fff" stroke="#E8C4B2"/>
+        <text x="115" y="86" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1F2421">用户点击</text>
+
+        <rect x="240" y="58" width="180" height="46" rx="8" fill="#C0522B" stroke="#C0522B"/>
+        <text x="330" y="78" text-anchor="middle" font-size="12.5" font-weight="700" fill="#FFF">Controller</text>
+        <text x="330" y="96" text-anchor="middle" font-size="11" fill="#F7D5C6">查数据 → <tspan font-weight="700">挑一个 View</tspan></text>
+
+        <rect x="470" y="40" width="150" height="40" rx="8" fill="#fff" stroke="#E8C4B2"/>
+        <text x="545" y="65" text-anchor="middle" font-size="12" fill="#4A534E">View A</text>
+        <rect x="470" y="84" width="150" height="40" rx="8" fill="#F6EDD6" stroke="#8A6D2F" stroke-width="2"/>
+        <text x="545" y="109" text-anchor="middle" font-size="12" font-weight="700" fill="#8A6D2F">View B ← 选中</text>
+
+        <path d="M192,81 L236,81" stroke="#C0522B" stroke-width="2" marker-end="url(#m1)"/>
+        <path d="M424,74 L466,62" stroke="#C0522B" stroke-width="1.6" marker-end="url(#m1)"/>
+        <path d="M424,88 L466,104" stroke="#C0522B" stroke-width="2.4" marker-end="url(#m1)"/>
+
+        <text x="650" y="76" font-size="12.5" fill="#A8451F" font-weight="700">命令式</text>
+        <text x="650" y="98" font-size="11.5" fill="#7C857F">必须知道有哪些 View</text>
+        <text x="650" y="116" font-size="11.5" fill="#7C857F">并把数据塞进去</text>
+
+        <text x="40" y="140" font-size="12" fill="#4A534E">Controller 承担了一个隐性负担：<tspan font-weight="700">它得知道"界面长什么样、有几个候选"</tspan></text>
+        <text x="40" y="158" font-size="12" fill="#4A534E">漏刷新一处 = 显示陈旧数据，且没有任何编译器提示</text>
+
+        <!-- 下半 MVVM -->
+        <rect x="20" y="188" width="820" height="152" rx="12" fill="#E7EFE9" stroke="#C3D8CD"/>
+        <text x="40" y="214" font-size="14" font-weight="700" fill="#1E4638">MVVM：没人"选择"，View 自己会更新</text>
+
+        <rect x="40" y="230" width="150" height="46" rx="8" fill="#fff" stroke="#C3D8CD"/>
+        <text x="115" y="258" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1F2421">用户点击</text>
+
+        <rect x="240" y="230" width="180" height="46" rx="8" fill="#1E4638" stroke="#1E4638"/>
+        <text x="330" y="250" text-anchor="middle" font-size="12.5" font-weight="700" fill="#F2F5F3">ViewModel</text>
+        <text x="330" y="268" text-anchor="middle" font-size="11" fill="#C3D8CD">只改 State，<tspan font-weight="700" fill="#FFF">不管 UI</tspan></text>
+
+        <rect x="470" y="222" width="160" height="62" rx="8" fill="#F6EDD6" stroke="#8A6D2F" stroke-width="1.6"/>
+        <text x="550" y="248" text-anchor="middle" font-size="12.5" font-weight="700" fill="#8A6D2F">State</text>
+        <text x="550" y="270" text-anchor="middle" font-size="11" fill="#4A534E">唯一可信源</text>
+
+        <rect x="690" y="230" width="130" height="46" rx="8" fill="#fff" stroke="#C3D8CD"/>
+        <text x="755" y="258" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1F2421">View</text>
+
+        <path d="M192,253 L236,253" stroke="#2E6B54" stroke-width="2" marker-end="url(#m2)"/>
+        <text x="214" y="244" text-anchor="middle" font-size="11" fill="#2E6B54">事件</text>
+        <path d="M424,253 L466,253" stroke="#2E6B54" stroke-width="2" marker-end="url(#m2)"/>
+        <text x="445" y="244" text-anchor="middle" font-size="11" fill="#2E6B54">写入</text>
+        <path d="M634,253 L686,253" stroke="#2E6B54" stroke-width="2" marker-end="url(#m2)"/>
+        <text x="660" y="244" text-anchor="middle" font-size="11" fill="#2E6B54">自动</text>
+
+        <text x="40" y="312" font-size="12" fill="#4A534E">View 在读 State 的时候就<tspan font-weight="700" fill="#1E4638">登记过</tspan>了 —— 值一变，只有读过它的那些节点更新</text>
+        <text x="40" y="330" font-size="12" fill="#4A534E">ViewModel 里<tspan font-weight="700" fill="#1E4638">没有任何一行代码提到 UI</tspan>，所以它不认识 View，也就不会漏刷新</text>
+      </g>
+    </svg>
+    </div>
+    <figcaption><b>图 1-2</b>　<b>这就是 MVVM 里没有 Controller 的真正原因</b>——不是改名，是那个角色的主要工作被数据绑定自动化了。</figcaption>
+  </figure>
+
+  <p>看你的代码，这个区别非常具体：</p>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">…/ui/viewmodel/HomeViewModel.kt</span>
+      <span class="code-lang">KOTLIN</span>
+    </div>
+<pre><code><span class="c">// ViewModel 只管改状态。注意：没有 notifyDataSetChanged()，没有 refreshUI()</span>
+<span class="k">fun</span> <span class="f">selectTab</span>(tab: WallpaperDomain) {
+    <span class="k">if</span> (_selectedTab.value != tab) _selectedTab.value = tab
+    <span class="c">// ← 就这一行。谁在显示？几个地方在显示？ViewModel 不知道，也不需要知道</span>
+}</code></pre>
+  </div>
+
+  <div class="callout rule">
+    <span class="ct">跨过这道坎的标志</span>
+    <p>当你不再问"它怎么知道该刷新了"，而是自然地认为"它读过了，所以它会被通知"——你就跨过去了。<br>
+    <b>这个"读过了就自动通知"的机制，就是第 4 章要讲的 Signals。</b>你现在已经站在它的门口了。</p>
+  </div>
+</section>
+
+<!-- ==================== 第 2 章 ==================== -->
+<section id="ch2">
+  <div class="chapter-head">
+    <span class="num">第二章 · CHAPTER Ⅱ</span>
+    <h2>MVVM 的解法</h2>
+    <p class="lead">状态搬出来了，得有地方放、有规矩传、有办法不写错。这一章全是能直接用的东西。</p>
+  </div>
+
+  <h3>2.1 三层各自的确权</h3>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 2-1　MVVM 三层职责边界（以 Screensaver 为例）</div>
+    <table>
+      <thead><tr><th style="width:12%">层</th><th style="width:30%">可以做什么</th><th style="width:30%">绝对不能做什么</th><th>本项目实例</th></tr></thead>
+      <tbody>
+        <tr><td><b>View</b></td><td>渲染状态、收集用户动作、持有"只影响这一帧"的临时 UI 状态</td><td>直接读写数据库；自己算业务结论；长期持有数据</td><td><code>HomeScreen</code><br><code>RuleEditorScreen</code></td></tr>
+        <tr><td><b>ViewModel</b></td><td>持有 UI 状态、响应事件、调用下层、做异步编排</td><td>引用 View / Activity / Context；直接操作控件</td><td><code>HomeViewModel</code><br><code>RuleEditorViewModel</code></td></tr>
+        <tr><td><b>Model</b></td><td>提供数据、执行纯计算、封装系统能力</td><td>知道 UI 的存在</td><td><code>ScheduleEngine</code><br><code>ScreensaverRepository</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>一个容易忽略的关键点：<b>ViewModel 之所以"活得更久"，不是因为它特殊，而是因为它被一个更外层的容器托着</b>——Android 里叫 <code class="inline">ViewModelStore</code>。屏幕旋转时 Activity 销毁重建，但 ViewModelStore 挂在"这次任务"上而不是"这个 Activity 实例"上，所以 ViewModel 活下来了；只有用户彻底退出（Activity 真正 <code class="inline">finish()</code>）时才清理。</p>
+
+  <h3>2.2 单向数据流：把网状箭头拉成两条</h3>
+
+  <figure>
+    <div class="fig-box">
+    <svg viewBox="0 0 760 262" role="img" aria-label="单向数据流环">
+      <defs>
+        <marker id="u1" markerWidth="10" markerHeight="10" refX="8" refY="3.4" orient="auto">
+          <path d="M0,0 L8,3.4 L0,6.8 Z" fill="#2E6B54"/>
+        </marker>
+        <marker id="u2" markerWidth="10" markerHeight="10" refX="8" refY="3.4" orient="auto">
+          <path d="M0,0 L8,3.4 L0,6.8 Z" fill="#C0522B"/>
+        </marker>
+      </defs>
+      <g font-family="sans-serif">
+        <rect x="288" y="14" width="184" height="54" rx="10" fill="#E7EFE9" stroke="#2E6B54" stroke-width="1.6"/>
+        <text x="380" y="38" text-anchor="middle" font-size="14" font-weight="700" fill="#1E4638">View</text>
+        <text x="380" y="57" text-anchor="middle" font-size="11.5" fill="#4A534E">渲染 + 转发动作</text>
+
+        <rect x="530" y="108" width="196" height="62" rx="10" fill="#1E4638"/>
+        <text x="628" y="136" text-anchor="middle" font-size="14" font-weight="700" fill="#F2F5F3">ViewModel</text>
+        <text x="628" y="156" text-anchor="middle" font-size="11.5" fill="#C3D8CD">处理事件 → 算出新状态</text>
+
+        <rect x="288" y="146" width="184" height="58" rx="10" fill="#FBEBE3" stroke="#C0522B" stroke-width="1.6"/>
+        <text x="380" y="170" text-anchor="middle" font-size="14" font-weight="700" fill="#A8451F">State（UiState）</text>
+        <text x="380" y="189" text-anchor="middle" font-size="11.5" fill="#7C857F">唯一可信源 · 对外只读</text>
+
+        <path d="M472,41 C566,41 580,92 576,104" fill="none" stroke="#2E6B54" stroke-width="2" marker-end="url(#u1)"/>
+        <text x="528" y="58" font-size="12" font-weight="600" fill="#2E6B54">① 事件</text>
+        <path d="M628,170 L628,192 C628,228 500,242 478,208" fill="none" stroke="#2E6B54" stroke-width="2" marker-end="url(#u1)"/>
+        <text x="600" y="232" font-size="12" font-weight="600" fill="#2E6B54">② 写入新状态</text>
+        <path d="M288,175 C220,175 200,96 284,50" fill="none" stroke="#C0522B" stroke-width="2" marker-end="url(#u2)"/>
+        <text x="150" y="116" font-size="12" font-weight="600" fill="#C0522B">③ 状态流回</text>
+        <text x="150" y="134" font-size="11.5" fill="#7C857F">（自动重渲染）</text>
+
+        <text x="380" y="256" text-anchor="middle" font-size="12" fill="#7C857F">View 从不直接改 State，只"报告发生了什么"；改状态的权力只在 ViewModel 手里</text>
+      </g>
+    </svg>
+    </div>
+    <figcaption><b>图 2-1</b>　三条边方向固定、不可逆。因此"当前界面长什么样"永远是 State 的一个纯函数——这是可预测性的来源。</figcaption>
+  </figure>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">…/ui/screens/HomeScreen.kt　（③ 订阅 与 ① 上报）</span>
+      <span class="code-lang">KOTLIN</span>
+    </div>
+<pre><code><span class="c">// ③ 状态流回：collect 把 StateFlow 接到 Compose，值一变自动重组</span>
+<span class="k">val</span> filteredRules     <span class="k">by</span> vm.filteredRules.collectAsStateWithLifecycle()
+<span class="k">val</span> selectedTab       <span class="k">by</span> vm.selectedTab.collectAsStateWithLifecycle()
+
+<span class="c">// ① 事件上报：View 不自己算，只把"用户点了哪个 Tab"告诉 ViewModel</span>
+DomainSegmentedTabs(
+    selected = selectedTab,
+    onSelect = vm::selectTab,      <span class="c">// 传的是函数引用，不是把状态丢出去改</span>
+)</code></pre>
+  </div>
+
+  <div class="callout rule">
+    <span class="ct">为什么非要 "_xxx 私有 + xxx 只读" 这套啰嗦写法</span>
+    <p>这不是 Kotlin 的繁文缛节，而是<b>把"修改权"变成编译期可检查的约束</b>：
+    <code class="inline">MutableStateFlow</code> 留在 ViewModel 内部，外面拿到的 <code class="inline">StateFlow</code> 没有 <code class="inline">.value</code> 的 setter。View 层就算想违规改状态，IDE 直接报红。</p>
+    <p><b>架构约束一旦只靠"约定"，就一定会有人破例；能下沉到编译器检查的，才是真约束。</b>——这正是第 0 章"依赖方向"在代码层面的落地。</p>
+  </div>
+
+  <h3 id="ch2-3">2.3 状态容器三要素：为什么偏偏是 StateFlow</h3>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 2-2　StateFlow 的三个特性，每一个都对应 UI 状态的一个刚需</div>
+    <table>
+      <thead><tr><th style="width:14%">特性</th><th style="width:34%">含义</th><th>为什么 UI 状态恰好需要它</th></tr></thead>
+      <tbody>
+        <tr><td><b>必须有初值</b></td><td>构造时就得给值：<code>MutableStateFlow(LOCK)</code></td><td>界面第一帧就得画点什么，不能"还没数据"。<b>天然消灭 loading 空窗判断</b></td></tr>
+        <tr><td><b>只保留最新</b></td><td>conflate 背压策略：连发 10 个值，旧 9 个丢弃</td><td>UI 关心的永远是"现在是什么"，中间态没有意义</td></tr>
+        <tr><td><b>equals 去重</b></td><td>写入相同值不通知下游</td><td><code>data class</code> 的结构化相等让"值没变"被自动识别，省掉无意义重组。<b>这就是 <code>RuleEditorState</code> 必须是 data class 的真正原因</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>派生状态：能算出来的，就不要存</h4>
+
+  <p>你的首页有典型场景：<b>"当前选中的域" + "全部规则" → "该域的规则列表"</b>。这个列表是<b>派生</b>出来的，不该再存一份——存了就要同时维护两份，早晚不一致。</p>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">…/ui/viewmodel/HomeViewModel.kt　（派生状态与订阅共享）</span>
+      <span class="code-lang">KOTLIN</span>
+    </div>
+<pre><code><span class="c">// 源状态：DB 流 → 转成 StateFlow，多个订阅者共享同一条上游（只查一次库）</span>
+<span class="k">private val</span> rules: StateFlow&lt;List&lt;ScheduleRuleEntity&gt;&gt; = repository.observeRules()
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(<span class="n">5000</span>), emptyList())
+
+<span class="c">// 派生状态：过滤 + 排序，不落库、不缓存，随源变化自动重算</span>
+<span class="k">val</span> filteredRules: StateFlow&lt;List&lt;ScheduleRuleEntity&gt;&gt; =
+    combine(rules, _selectedTab) { all, tab -&gt;
+        all.asSequence()
+            .filter { it.wallpaperDomain == tab }
+            .sortedBy { it.startMinute }
+            .toList()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(<span class="n">5000</span>), emptyList())</code></pre>
+  </div>
+
+  <div class="callout key">
+    <span class="ct">WhileSubscribed(5000) 里的 5000 是什么</span>
+    <p>它的含义是：<b>最后一个订阅者消失后，再等 5 秒才停掉上游流</b>。这个"宽限期"是为屏幕旋转准备的——旋转时旧 Composable 销毁（订阅者归零）、新的立刻重建（订阅者回来），中间通常不到 1 秒。若宽限期是 0，每次旋转都会真的断开数据库流再重连，白白浪费一次查询。</p>
+    <p><b>判断标准：这个数值应该略大于"界面销毁到重建"的耗时。</b></p>
+  </div>
+
+  <h3 id="ch2-4">2.4 两个真实的坑（都写在你的代码里）</h3>
+
+  <h4>坑一：一次性事件放进 StateFlow，会重放</h4>
+
+  <p>"保存成功"这种提示是<b>一次性事件</b>，不是一个"持续为真的状态"。塞进 <code class="inline">StateFlow</code>：屏幕一旋转，Composable 重建并重新 collect，那个值还在，Toast 又弹一遍。</p>
+
+  <div class="duo">
+    <div>
+      <h5><span class="badge bad">错误</span> 事件当成状态存</h5>
+      <p>把提示塞进 <code>UiState</code> 字段。界面重建时它还在 → 重复弹出；而且"提示"在业务上根本不是状态。</p>
+    </div>
+    <div>
+      <h5><span class="badge good">正解</span> 双通道</h5>
+      <p>状态走 <code>StateFlow</code>（可重放，本来就该重放）；一次性事件走 <code>SharedFlow</code>（发出即消费）。</p>
+    </div>
+  </div>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">…/ui/viewmodel/RuleEditorViewModel.kt　（双通道：状态流 + 事件流）</span>
+      <span class="code-lang">KOTLIN</span>
+    </div>
+<pre><code><span class="c">// 通道 A：持续状态 —— 界面重建后要原样恢复，所以可重放</span>
+<span class="k">private val</span> _state = MutableStateFlow(RuleEditorState())
+<span class="k">val</span> state: StateFlow&lt;RuleEditorState&gt; = _state
+
+<span class="c">// 通道 B：一次性提示事件（成功/冲突/失败原因），由界面弹 Snackbar</span>
+<span class="c">// extraBufferCapacity=4：允许在无人订阅时先攒着，避免 emit 挂起丢失</span>
+<span class="k">private val</span> _events = MutableSharedFlow&lt;String&gt;(extraBufferCapacity = <span class="n">4</span>)
+<span class="k">val</span> events: SharedFlow&lt;String&gt; = _events
+
+<span class="c">// 使用处：校验不通过时发事件，而不是改状态</span>
+<span class="k">val</span> conflict = <span class="f">findConflict</span>(s.startMinute, s.endMinute)
+<span class="k">if</span> (conflict != <span class="k">null</span>) {
+    _events.<span class="f">tryEmit</span>(conflict)   <span class="c">// tryEmit：不挂起、不丢事件</span>
+    <span class="k">return</span>@launch
+}</code></pre>
+  </div>
+
+  <h4>坑二：ViewModel 感知不到 ON_RESUME</h4>
+
+  <p>ViewModel 生命周期比 View 长，这是优点；代价是<b>它对"界面回到前台"这件事一无所知</b>——它只有 <code class="inline">onCleared()</code>，没有 <code class="inline">onResume()</code>。你的项目里正好踩到，解法就写在 <code class="inline">HomeScreen.kt</code>：</p>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">…/ui/screens/HomeScreen.kt　（由 View 把生命周期事件转发给 ViewModel）</span>
+      <span class="code-lang">KOTLIN</span>
+    </div>
+<pre><code><span class="k">val</span> lifecycleOwner = LocalLifecycleOwner.current
+DisposableEffect(lifecycleOwner) {
+    <span class="k">val</span> observer = LifecycleEventObserver { _, event -&gt;
+        <span class="k">if</span> (event == Lifecycle.Event.ON_RESUME) {
+            vm.<span class="f">refreshExactAlarmStatus</span>()
+            <span class="c">// 暖启动（从最近任务/点图标恢复）不走 onCreate，</span>
+            <span class="c">// 必须在此重算"当前生效规则"，否则 Hero/生效中标签停留在上次前台时刻的旧状态</span>
+            vm.<span class="f">recomputeCurrent</span>()
+        }
+    }
+    lifecycleOwner.lifecycle.<span class="f">addObserver</span>(observer)
+    onDispose { lifecycleOwner.lifecycle.<span class="f">removeObserver</span>(observer) }
+}</code></pre>
+  </div>
+
+  <div class="callout pit">
+    <span class="ct">这个坑的通用形态</span>
+    <p>凡是"从系统设置页返回""从别的 App 切回来"这类场景，ViewModel 都需要被通知。
+    <b>通用解法：由 View 侧用生命周期观察者把事件转发给 ViewModel。</b>
+    <code class="inline">DisposableEffect</code> 的 <code class="inline">onDispose</code> 负责注销——<b>忘了注销就是内存泄漏，这一对必须成对出现</b>。</p>
+  </div>
+</section>
+
+<!-- ==================== 第 3 章 ==================== -->
+<section id="ch3">
+  <div class="chapter-head">
+    <span class="num">第三章 · CHAPTER Ⅲ</span>
+    <h2>判据：这段代码该放哪一层</h2>
+    <p class="lead">架构知识落到日常，真正的动作只有一个：新建一个函数时，知道它该放在哪个文件。</p>
+  </div>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 3-1　分层归属判断表（可直接当 checklist 用）</div>
+    <table>
+      <thead><tr><th style="width:40%">如果这段代码…</th><th style="width:18%">归属</th><th>理由 / 本项目实例</th></tr></thead>
+      <tbody>
+        <tr><td>读写数据库、网络、文件系统</td><td><b>Repository</b></td><td>数据源门面，上层不该知道数据从哪来。<code>ScreensaverRepository</code></td></tr>
+        <tr><td>纯计算：无 IO、无 Android 框架依赖、输入输出确定</td><td><b>domain 纯函数</b></td><td>可在 JVM 上直接单测，不需要 Robolectric。<code>ScheduleEngine</code>——<b>你那 15 个单测全压在这一层</b></td></tr>
+        <tr><td>要跨界面存活、被多个 UI 读取、要响应事件</td><td><b>ViewModel</b></td><td>状态宿主。<code>HomeViewModel</code></td></tr>
+        <tr><td>只影响当前这一帧的显示（弹窗开关、展开收起、输入框焦点）</td><td><b>View 内 remember</b></td><td>生命周期就该跟着 UI；放进 ViewModel 反而是污染全局状态</td></tr>
+        <tr><td>需要 Context / 系统服务（AlarmManager、WallpaperManager）</td><td><b>系统封装层</b></td><td>ViewModel 持 Context 会泄漏。<code>AlarmScheduler</code> / <code>WallpaperApplier</code>——<b>所以它们在根包 <code>scheduler/</code> 而不在 <code>domain/</code></b></td></tr>
+        <tr><td>把上面这些装配起来、决定谁依赖谁</td><td><b>DI 容器</b></td><td>手动 DI。<code>AppContainer</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>3.1 实例解剖：为什么 ScheduleEngine 是 <code>object</code></h3>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">app/src/main/java/com/screensaver/domain/scheduler/ScheduleEngine.kt</span>
+      <span class="code-lang">KOTLIN</span>
+    </div>
+<pre><code><span class="c">/**
+ * 调度引擎：纯函数，无 Android 运行时时依赖（操作的是纯 Kotlin 实体），便于单测。
+ *
+ * 模型（对齐需求/架构文档的"剪开拉直"）：
+ *  - 一天 = 0:00 → 24:00 的一条直线，被切成 0..1439 的"当天第几分钟"。
+ *  - 一条规则永远不跨午夜（跨午夜由编辑器拆成两条存储），故 endMinute 永远 &gt; startMinute。
+ *  - 因此命中判断只有【一种】：start &lt;= now &lt; end，无需任何 wrap-around 分支。
+ */</span>
+<span class="k">object</span> ScheduleEngine {          <span class="c">// ← object：无状态，天然单例，不需要注入</span>
+
+    <span class="k">fun</span> <span class="f">resolve</span>(
+        now: Int,
+        rules: List&lt;ScheduleRuleEntity&gt;,
+        domain: WallpaperDomain,
+    ): ScheduleRuleEntity? {
+        <span class="k">return</span> rules.filter {
+            it.wallpaperDomain == domain &amp;&amp;
+                it.startMinute &lt;= now &amp;&amp; now &lt; it.endMinute
+        }.<span class="f">minByOrNull</span> { it.startMinute }
+    }
+}</code></pre>
+  </div>
+
+  <p>这段代码里藏着三个可以立刻复用的设计决策：</p>
+
+  <ol class="steps">
+    <li><b>用 <code>object</code> 而不是 <code>class</code></b><span>无状态的工具用 object，省掉一次依赖注入。<b>判断标准：如果它不需要被替换成假实现来测试，就不必做成可注入的类。</b></span></li>
+    <li><b>用"剪开拉直"消灭分支</b><span>把"一天"建模成 0..1439 的直线，规定规则不跨午夜（跨午夜由编辑器拆成两条存储）。于是命中判断只剩 <code>start &lt;= now &lt; end</code> 一种，<b>不需要任何 wrap-around 分支</b>。<br>这是数据建模的威力：<b>约束加在存储层，逻辑层就干净了</b>。</span></li>
+    <li><b>返回 <code>null</code> 而不是"默认规则"</b><span>KDoc 写得很明确："若无命中的规则则返回 null —— 调用方据此<b>不干预</b>，保持该域已有壁纸"。<b>用 null 表达"无"这个业务语义，比哨兵值安全得多。</b></span></li>
+  </ol>
+
+  <div class="callout key">
+    <span class="ct">记住这句话</span>
+    <p><b>"能算出来的就不要存，能约束在存储层的就不要留给逻辑层。"</b><br>
+    你在 Screensaver 里反复做的这两件事（派生状态用 <code>combine</code>、跨午夜在编辑器拆条），就是架构思维的具体形态。</p>
+  </div>
+
+  <h3>3.2 一个灰色地带（给你练手）</h3>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">app/src/main/java/com/screensaver/ui/util/TimeFormat.kt</span>
+      <span class="code-lang">KOTLIN</span>
+    </div>
+<pre><code><span class="k">import</span> java.util.Calendar
+
+<span class="c">/** 分钟数(0..1440) → "HH:MM"（1440 显示为 24:00）。 */</span>
+<span class="k">fun</span> <span class="f">formatMinute</span>(minute: Int): String { <span class="c">/* ... */</span> }   <span class="c">// ← 纯函数</span>
+
+<span class="c">/** 当前"当天第几分钟"。 */</span>
+<span class="k">fun</span> <span class="f">nowMinuteOfDay</span>(): Int {                        <span class="c">// ← 不是纯函数！</span>
+    <span class="k">val</span> c = Calendar.getInstance()                  <span class="c">//   依赖系统时钟</span>
+    <span class="k">return</span> c.<span class="f">get</span>(Calendar.HOUR_OF_DAY) * <span class="n">60</span> + c.<span class="f">get</span>(Calendar.MINUTE)
+}</code></pre>
+  </div>
+
+  <p>注意这个文件在 <code class="inline">ui/util/</code> 下，却被 <code class="inline">HomeViewModel</code> 引用。<code class="inline">formatMinute()</code> 是纯函数没问题；但 <code class="inline">nowMinuteOfDay()</code> <b>读系统时钟，严格说不是纯函数</b>，却被业务层依赖。</p>
+
+  <div class="callout rule">
+    <span class="ct">怎么看待这种"灰色地带"</span>
+    <p>两种处理都成立，关键是<b>你得知道它是灰的</b>：<br>
+    ① <b>留着</b>——它只依赖 <code>java.util.Calendar</code> 而非 <code>android.*</code>，单测照样能跑，工程上完全可接受；<br>
+    ② <b>抽出"时钟"接口</b>——把 <code>nowMinuteOfDay()</code> 变成可注入的 <code>Clock</code>，单测时能固定时间（这是消除"时间不确定性"的标准做法，你的 15 个单测若涉及时间边界就会需要它）。</p>
+    <p><b>能识别出它是灰色地带，比强行给它分类更重要。</b>架构判断力就长在这种地方。</p>
+  </div>
+
+  <h3 id="ch3-3">3.3 三种状态传导机制（贯穿全书的一条暗线）</h3>
+
+  <p>到这里你可能会有一个模糊的疑问：<b>StateFlow、mutableStateOf、BroadcastReceiver 都能"让东西动起来"，它们到底什么关系？</b></p>
+
+  <p>答案是：<b>它们是三种完全不同的机制，你的项目三种都用上了，而且都用对了地方。</b></p>
+
+  <figure>
+    <div class="fig-box">
+    <svg viewBox="0 0 860 340" role="img" aria-label="事件、流、信号三种状态传导机制对比">
+      <g font-family="sans-serif">
+        <!-- Event -->
+        <rect x="20" y="20" width="262" height="300" rx="12" fill="#FBEBE3" stroke="#C0522B" stroke-width="1.6"/>
+        <circle cx="52" cy="56" r="15" fill="#C0522B"/>
+        <text x="52" y="61" text-anchor="middle" font-size="13" font-weight="700" fill="#FFF">1</text>
+        <text x="76" y="61" font-size="15" font-weight="700" fill="#A8451F">Event 事件</text>
+        <text x="42" y="92" font-size="12.5" font-weight="600" fill="#1F2421">"发生了什么"</text>
+        <text x="42" y="120" font-size="12" fill="#4A534E">· 错过了就没了，补不回来</text>
+        <text x="42" y="142" font-size="12" fill="#4A534E">· 需手动订阅 / 退订</text>
+        <text x="42" y="164" font-size="12" fill="#4A534E">· 不持值，只报"出事了"</text>
+        <line x1="42" y1="180" x2="260" y2="180" stroke="#E8C4B2"/>
+        <text x="42" y="204" font-size="11.5" font-weight="700" fill="#7C857F">类比</text>
+        <text x="42" y="224" font-size="12" fill="#4A534E">敲门 —— 响了就得去应，</text>
+        <text x="42" y="242" font-size="12" fill="#4A534E">不应就错过了</text>
+        <text x="42" y="272" font-size="11.5" font-weight="700" fill="#7C857F">你的用法</text>
+        <text x="42" y="292" font-size="12" fill="#A8451F">ScreenOnReceiver</text>
+        <text x="42" y="310" font-size="11" fill="#7C857F">闹钟到点 / 亮屏 / 开机</text>
+
+        <!-- Flow -->
+        <rect x="299" y="20" width="262" height="300" rx="12" fill="#F6EDD6" stroke="#E0CE9E" stroke-width="1.6"/>
+        <circle cx="331" cy="56" r="15" fill="#8A6D2F"/>
+        <text x="331" y="61" text-anchor="middle" font-size="13" font-weight="700" fill="#FFF">2</text>
+        <text x="355" y="61" font-size="15" font-weight="700" fill="#8A6D2F">Flow 流</text>
+        <text x="321" y="92" font-size="12.5" font-weight="600" fill="#1F2421">"持续的值序列"</text>
+        <text x="321" y="120" font-size="12" fill="#4A534E">· 只保留最新值（conflate）</text>
+        <text x="321" y="142" font-size="12" fill="#4A534E">· 需显式 collect，可共享</text>
+        <text x="321" y="164" font-size="12" fill="#4A534E">· 跨配置变更存活</text>
+        <line x1="321" y1="180" x2="539" y2="180" stroke="#E0CE9E"/>
+        <text x="321" y="204" font-size="11.5" font-weight="700" fill="#7C857F">类比</text>
+        <text x="321" y="224" font-size="12" fill="#4A534E">水管 —— 一直通着，接上</text>
+        <text x="321" y="242" font-size="12" fill="#4A534E">就有水，但得自己去接</text>
+        <text x="321" y="272" font-size="11.5" font-weight="700" fill="#7C857F">你的用法</text>
+        <text x="321" y="292" font-size="12" fill="#8A6D2F">StateFlow（ViewModel → UI）</text>
+        <text x="321" y="310" font-size="11" fill="#7C857F">跨层共享状态</text>
+
+        <!-- Signal -->
+        <rect x="578" y="20" width="262" height="300" rx="12" fill="#E7EFE9" stroke="#2E6B54" stroke-width="1.6"/>
+        <circle cx="610" cy="56" r="15" fill="#2E6B54"/>
+        <text x="610" y="61" text-anchor="middle" font-size="13" font-weight="700" fill="#FFF">3</text>
+        <text x="634" y="61" font-size="15" font-weight="700" fill="#1E4638">Signal 信号</text>
+        <text x="600" y="92" font-size="12.5" font-weight="600" fill="#1F2421">"当前值 + 自动依赖图"</text>
+        <text x="600" y="120" font-size="12" fill="#4A534E">· 随时能读到当前值</text>
+        <text x="600" y="142" font-size="12" fill="#4A534E">· <tspan font-weight="700">读一次即自动订阅</tspan></text>
+        <text x="600" y="164" font-size="12" fill="#4A534E">· 只更新读过它的那一个点</text>
+        <line x1="600" y1="180" x2="818" y2="180" stroke="#C3D8CD"/>
+        <text x="600" y="204" font-size="11.5" font-weight="700" fill="#7C857F">类比</text>
+        <text x="600" y="224" font-size="12" fill="#4A534E">导线 —— 焊上去（读）就通电，</text>
+        <text x="600" y="242" font-size="12" fill="#4A534E">没焊的元件一点不耗电</text>
+        <text x="600" y="272" font-size="11.5" font-weight="700" fill="#7C857F">你的用法</text>
+        <text x="600" y="292" font-size="12" fill="#1E4638">mutableStateOf（UI 局部状态）</text>
+        <text x="600" y="310" font-size="11" fill="#7C857F">弹窗开关、展开收起</text>
+      </g>
+    </svg>
+    </div>
+    <figcaption><b>图 3-1</b>　三种机制的分工：<b>一帧的临时显示 → Signal；跨层共享 → Flow；外部世界推过来的 → Event。</b>你的项目三种都用对了。</figcaption>
+  </figure>
+
+  <div class="callout pit">
+    <span class="ct">顺带看清你那个"锁屏不自动切换"的 bug</span>
+    <p>用这张图重新看，问题定位会清晰得多：</p>
+    <p><code>闹钟到点 → WallpaperSwitchReceiver → 应用壁纸</code> ❌ 国产 ROM 上没跑通<br>
+    <code>亮屏 → ScreenOnReceiver → 补偿应用</code> ❌ 同上<br>
+    <code>打开 APP → MainActivity.onCreate → applyCurrentNow</code> ✅ 一直都通</p>
+    <p><b>坏的是"事件广播"这一条通道</b>——不是 Signals 坏了，也不是 StateFlow 坏了，是第三种机制（系统广播）在国产 ROM 的省电策略下被掐断了。这也解释了为什么 <code>goAsync()</code> 救不回来：它只保证"系统不认为你超时"，<b>不保证进程不被冻结</b>。</p>
+    <p><b>抽象概念的价值就在这儿</b>：一旦能说出"坏的是事件通道、不是状态通道"，排查方向就从"业务逻辑是不是算错了"收敛到"这条传输链路可不可靠"。</p>
+  </div>
+</section>
+
+<!-- ==================== 第 4 章 ==================== -->
+<section id="ch4">
+  <div class="chapter-head">
+    <span class="num">第四章 · CHAPTER Ⅳ</span>
+    <h2>Signals 是什么</h2>
+    <p class="lead">它既不是新架构，也不算设计思想。这一章给你它的精确定义、可运行的最小实现，以及它在软件工程层次里的准确位置。</p>
+  </div>
+
+  <h3>4.1 先拆掉译名的坑：Event ≠ Signal</h3>
+
+  <p>中文说"信号"，你脑子里浮现的应该是广播、红绿灯、手机信号——"某处发出通知，谁听见谁响应"。<b>但 Signals 恰恰不是这个意思。</b></p>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 4-1　Event 与 Signal 的本质区别</div>
+    <table>
+      <thead><tr><th style="width:14%"></th><th style="width:43%">Event（事件）</th><th>Signal（信号）</th></tr></thead>
+      <tbody>
+        <tr><td><b>携带</b></td><td>发生了什么</td><td><b>当前值是什么</b></td></tr>
+        <tr><td><b>错过</b></td><td>错过就没了</td><td>随时能读到，永远有值</td></tr>
+        <tr><td><b>依赖</b></td><td>手动 <code>on</code> / <code>off</code>，漏一个就泄漏</td><td><b>读一次即自动登记</b></td></tr>
+        <tr><td><b>你的例子</b></td><td><code>ScreenOnReceiver</code> 收到"亮屏了"</td><td><code>mutableStateOf</code> 存的"弹窗开不开"</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>命名来自电子工程：<b>signal = 一个随时间变化的量，沿着导线传给需要它的元件。</b>所以最贴切的类比是——</p>
+
+  <blockquote>
+    <b>Signal 是一根带电的导线。</b><br>
+    你把灯泡焊上去（<b>读一次</b>），电就来了；电源一变电压，灯泡立刻跟着变；<b>没焊在它上面的元件完全不受影响</b>，连电都不耗。
+  </blockquote>
+
+  <h3>4.2 精确定义与三个必要特征</h3>
+
+  <div class="callout rule">
+    <span class="ct">定义</span>
+    <p><b>Signal 是一个"值的容器"。它在被读取时自动记下"谁在读我"，在被修改时只通知这些记下来的读者。</b></p>
+  </div>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th style="width:16%">特征</th><th style="width:36%">说明</th><th>缺了会怎样</th></tr></thead>
+      <tbody>
+        <tr><td><b>① 持有值</b></td><td>不是"发生了什么"，而是"现在是什么"</td><td>退化成 Event</td></tr>
+        <tr><td><b>② 读即订阅</b></td><td>读取时自动登记依赖，无需声明</td><td>退化成普通变量 + 手动订阅</td></tr>
+        <tr><td><b>③ 细粒度通知</b></td><td>只通知真正读过它的订阅者</td><td>退化成"全局广播 + 全量刷新"</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="ch4-3">4.3 核心机制：读即订阅（含可运行的最小实现）</h3>
+
+  <p>全部魔法就在三行关键代码里。下面这段 JS <b>可以直接跑</b>：</p>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">signals.js　（极简版 · 已验证可运行）</span>
+      <span class="code-lang">JAVASCRIPT</span>
+    </div>
+<pre><code><span class="k">let</span> currentObserver = <span class="k">null</span>;        <span class="c">// 全局"当前是谁在读取"的指针</span>
+
+<span class="k">function</span> <span class="f">signal</span>(initial) {
+  <span class="k">let</span> value = initial;
+  <span class="k">const</span> subscribers = <span class="k">new</span> <span class="t">Set</span>();
+  <span class="k">return</span> {
+    <span class="f">get</span>() {
+      <span class="c">// 关键 1：谁在我被读取时"在场"，谁就是我的订阅者</span>
+      <span class="k">if</span> (currentObserver) subscribers.<span class="f">add</span>(currentObserver);
+      <span class="k">return</span> value;
+    },
+    <span class="f">set</span>(next) {
+      <span class="k">if</span> (<span class="t">Object</span>.<span class="f">is</span>(next, value)) <span class="k">return</span>;   <span class="c">// 关键 2：值没变就不通知</span>
+      value = next;
+      <span class="k">for</span> (<span class="k">const</span> sub <span class="k">of</span> [...subscribers]) <span class="f">sub</span>();
+    }
+  };
+}
+
+<span class="k">function</span> <span class="f">effect</span>(fn) {
+  <span class="k">const</span> execute = () =&gt; {
+    currentObserver = execute;              <span class="c">// 关键 3：执行前"亮身份"</span>
+    <span class="k">try</span> { <span class="f">fn</span>(); } <span class="k">finally</span> { currentObserver = <span class="k">null</span>; }
+  };
+  <span class="f">execute</span>();                              <span class="c">// 首次执行 = 建立依赖图</span>
+}</code></pre>
+  </div>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">用法与输出（实测）</span>
+      <span class="code-lang">JAVASCRIPT</span>
+    </div>
+<pre><code><span class="k">const</span> count = <span class="f">signal</span>(<span class="n">0</span>);
+<span class="k">const</span> show  = <span class="f">signal</span>(<span class="k">true</span>);
+
+<span class="f">effect</span>(() =&gt; <span class="t">console</span>.<span class="f">log</span>(show.<span class="f">get</span>() ? <span class="s">`count=</span><span class="n">${</span>count.<span class="f">get</span>()<span class="n">}</span><span class="s">`</span> : <span class="s">"hidden"</span>));
+
+<span class="c">// 输出：count=0     ← 首次执行，读到了 show 和 count，两者都登记了</span>
+
+show.<span class="f">set</span>(<span class="k">false</span>);   <span class="c">// 输出：hidden</span>
+count.<span class="f">set</span>(<span class="n">1</span>);      <span class="c">// 输出：（见下方说明）</span>
+count.<span class="f">set</span>(<span class="n">2</span>);      <span class="c">// 输出：（见下方说明）</span>
+show.<span class="f">set</span>(<span class="k">true</span>);    <span class="c">// 输出：count=2</span></code></pre>
+  </div>
+
+  <div class="callout pit">
+    <span class="ct">上面那个极简版有个真 bug —— 而且它证明了一件重要的事</span>
+    <p>注意第一次 <code>show.set(false)</code> 之后，effect 重跑时<b>只读了 show，没读 count</b>。但 <code>count</code> 的订阅表里还留着旧的登记。于是：</p>
+    <p><b>实测输出（极简版）：</b><code>count=0 / hidden / hidden / hidden / count=2</code> —— <code>count.set(1)</code> 和 <code>set(2)</code> <span style="color:#C0522B"><b>都误触发了</b></span>。</p>
+    <p><b>修复方式是"双向登记 + 自动清理"</b>：让 observer 也记住自己订阅了哪些 signal，每次重跑前先摘掉旧登记：</p>
+  </div>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">signals.js　（完整版：补上自动清理 · 已验证）</span>
+      <span class="code-lang">JAVASCRIPT</span>
+    </div>
+<pre><code><span class="k">function</span> <span class="f">signal</span>(initial) {
+  <span class="k">let</span> value = initial;
+  <span class="k">const</span> subscribers = <span class="k">new</span> <span class="t">Set</span>();
+  <span class="k">return</span> {
+    <span class="f">get</span>() {
+      <span class="k">if</span> (currentObserver) {
+        subscribers.<span class="f">add</span>(currentObserver);
+        currentObserver.deps.<span class="f">add</span>(subscribers);   <span class="c">// ← 双向登记</span>
+      }
+      <span class="k">return</span> value;
+    },
+    <span class="f">set</span>(next) { <span class="c">/* 同上 */</span> }
+  };
+}
+
+<span class="k">function</span> <span class="f">effect</span>(fn) {
+  <span class="k">const</span> execute = () =&gt; {
+    <span class="c">// 自动清理：重跑前先把自己从所有旧 signal 的订阅表里摘掉</span>
+    <span class="k">for</span> (<span class="k">const</span> dep <span class="k">of</span> execute.deps) dep.<span class="f">delete</span>(execute);
+    execute.deps.<span class="f">clear</span>();
+    currentObserver = execute;
+    <span class="k">try</span> { <span class="f">fn</span>(); } <span class="k">finally</span> { currentObserver = <span class="k">null</span>; }
+  };
+  execute.deps = <span class="k">new</span> <span class="t">Set</span>();
+  <span class="f">execute</span>();
+}</code></pre>
+  </div>
+
+  <p><b>同一个测试用例的实测输出（完整版）：</b><code>count=0 / hidden / count=2</code> —— <code>count.set(1)</code> 和 <code>set(2)</code> <b style="color:#2E6B54">完全静默</b>，符合预期。</p>
+
+  <div class="callout key">
+    <span class="ct">这一课的价值</span>
+    <p><b>"自动清理"不是性能优化，是正确性要求。</b>只要 effect 里有条件分支（<code>if</code>、三元、早返回），缺了它就会出现"明明不该触发却触发了"的幽灵更新——而且极难排查。</p>
+    <p>顺带一提：你项目里 <code>DisposableEffect</code> 的 <code>onDispose</code> 在做<b>同样性质的事</b>——虽然机制不同（那是生命周期回调，不是依赖追踪），但背后的原则是同一条：<b>登记与注销必须成对出现。</b></p>
+  </div>
+
+  <h4>生产实现还额外做四件事</h4>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th style="width:20%">优化</th><th>解决什么</th></tr></thead>
+      <tbody>
+        <tr><td><b>Push-Pull 求值</b></td><td>信号变了先"标脏"，等真被读时才重算。避免大依赖图里的一连串无谓计算</td></tr>
+        <tr><td><b>Glitch-Free</b></td><td>同一批次改了 a 和 b，依赖二者的 computed 只算一次，不会中间态闪一下</td></tr>
+        <tr><td><b>自动清理</b></td><td>见上——<b>正确性要求，不是优化</b></td></tr>
+        <tr><td><b>相等性检查</b></td><td><code>Object.is</code> 相同就不通知——<b>这就是 <code>data class</code> 能帮你省掉重组的原理</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="ch4-4">4.4 层次定位：Signals 既不是架构，也不算设计思想</h3>
+
+  <p>这是本章最需要讲清的问题。软件工程里有四个层次：</p>
+
+  <figure>
+    <div class="fig-box">
+    <svg viewBox="0 0 860 372" role="img" aria-label="软件工程四层塔与 Signals 的位置">
+      <g font-family="sans-serif">
+        <text x="30" y="26" font-size="13.5" font-weight="700" fill="#7C857F">层次</text>
+        <text x="360" y="26" font-size="13.5" font-weight="700" fill="#7C857F">回答什么问题</text>
+        <text x="640" y="26" font-size="13.5" font-weight="700" fill="#7C857F">例子</text>
+
+        <!-- L1 -->
+        <rect x="30" y="42" width="800" height="66" rx="10" fill="#F6EDD6" stroke="#E0CE9E"/>
+        <circle cx="62" cy="75" r="14" fill="#8A6D2F"/>
+        <text x="62" y="80" text-anchor="middle" font-size="13" font-weight="700" fill="#FFF">1</text>
+        <text x="88" y="70" font-size="14" font-weight="700" fill="#8A6D2F">架构模式 Architecture Pattern</text>
+        <text x="88" y="92" font-size="12" fill="#4A534E">项目立项时定一次；改它 = 重写</text>
+        <text x="360" y="76" font-size="12.5" fill="#4A534E">系统分几块？<tspan font-weight="700">谁能依赖谁</tspan>？</text>
+        <text x="640" y="76" font-size="12.5" fill="#4A534E">MVC / MVVM / 分层 / Clean</text>
+
+        <!-- L2 -->
+        <rect x="30" y="122" width="800" height="66" rx="10" fill="#E8EEF7" stroke="#BFCCE0"/>
+        <circle cx="62" cy="155" r="14" fill="#2B4A7D"/>
+        <text x="62" y="160" text-anchor="middle" font-size="13" font-weight="700" fill="#FFF">2</text>
+        <text x="88" y="150" font-size="14" font-weight="700" fill="#2B4A7D">设计范式 Paradigm</text>
+        <text x="88" y="172" font-size="12" fill="#4A534E">数年一变</text>
+        <text x="360" y="156" font-size="12.5" fill="#4A534E">状态变了，<tspan font-weight="700">怎么传导到 UI</tspan>？</text>
+        <text x="640" y="156" font-size="12.5" fill="#4A534E">响应式 / 单向数据流 / 命令式</text>
+
+        <!-- L3 -->
+        <rect x="30" y="202" width="800" height="72" rx="10" fill="#1E4638" stroke="#1E4638" stroke-width="2"/>
+        <circle cx="62" cy="238" r="15" fill="#C0522B"/>
+        <text x="62" y="243" text-anchor="middle" font-size="13" font-weight="700" fill="#FFF">3</text>
+        <text x="88" y="230" font-size="14.5" font-weight="700" fill="#F2F5F3">机制 / 原语 Primitive　←　<tspan fill="#E0A458">Signals 在这里</tspan></text>
+        <text x="88" y="252" font-size="12" fill="#C3D8CD">可随时替换的实现细节</text>
+        <text x="360" y="238" font-size="12.5" fill="#C3D8CD">依赖图怎么建？什么时候重算？</text>
+        <text x="640" y="238" font-size="12.5" font-weight="700" fill="#E0A458">Signals / VDOM diff / RxJava</text>
+
+        <!-- L4 -->
+        <rect x="30" y="288" width="800" height="60" rx="10" fill="#fff" stroke="#DFDACE"/>
+        <circle cx="62" cy="318" r="14" fill="#7C857F"/>
+        <text x="62" y="323" text-anchor="middle" font-size="13" font-weight="700" fill="#FFF">4</text>
+        <text x="88" y="314" font-size="14" font-weight="700" fill="#1F2421">库 / 框架</text>
+        <text x="88" y="334" font-size="12" fill="#4A534E">随便换，不影响架构</text>
+        <text x="360" y="322" font-size="12.5" fill="#4A534E">API 具体长什么样</text>
+        <text x="640" y="322" font-size="12.5" fill="#4A534E">Solid / Vue ref / Compose snapshot</text>
+
+        <text x="30" y="368" font-size="12.5" fill="#4A534E">越往下越可替换。<tspan font-weight="700">第 3 层换了，第 1 层可以纹丝不动 —— 这就是为什么"用了 Signals"不等于"换了个架构"。</tspan></text>
+      </g>
+    </svg>
+    </div>
+    <figcaption><b>图 4-1</b>　Signals 在第 3 层：<b>它是实现细节，不是架构。</b></figcaption>
+  </figure>
+
+  <h4>三个反证：它与架构正交</h4>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th style="width:32%">组合</th><th style="width:12%">存在吗</th><th>实例</th></tr></thead>
+      <tbody>
+        <tr><td>MVVM + <b>不用</b> Signals</td><td><b>✅</b></td><td>React 19 + Zustand——用 VDOM diff 走完"状态→UI"，照样是标准 MVVM</td></tr>
+        <tr><td>MVVM + Signals</td><td><b>✅</b></td><td>Vue + Pinia；你的 Compose + ViewModel</td></tr>
+        <tr><td>Signals + <b>不是</b> MVVM</td><td><b>✅</b></td><td>所有状态堆在组件里、业务逻辑塞进 <code>computed</code>——照样写出烂架构</td></tr>
+        <tr><td>Signals + 没有 ViewModel</td><td><b>✅</b></td><td>状态直接放模块级文件（Svelte 5 Runes 支持 <code>.svelte.js</code> 里写 <code>$state</code>）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout key">
+    <span class="ct">一句话</span>
+    <p><b>Signals 和 MVVM 是两个正交的维度。</b>就像"用不用钢筋"和"房子是别墅还是公寓"——是两件事，可以自由组合。<br>
+    所以别再纠结"用了 Signals 是不是就不是 MVVM 了"。</p>
+  </div>
+
+  <h3>4.5 那它跟架构的关联是什么？只管"状态 → UI"那一段路</h3>
+
+  <p>MVVM 规定了"事件上行、状态下行"，但<b>一个字都没规定"下行这条路该怎么修"</b>。这段路有三种修法：</p>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 4-2　"状态 → UI"的三种走法</div>
+    <table>
+      <thead><tr><th style="width:18%">走法</th><th style="width:36%">状态变了以后发生什么</th><th style="width:22%">代价</th><th>代表</th></tr></thead>
+      <tbody>
+        <tr><td><b>命令式</b></td><td>你自己写 <code>textView.text = x</code></td><td>漏一处就是 bug，且永远不知道漏了哪</td><td>上古 MVC</td></tr>
+        <tr><td><b>粗粒度响应式</b></td><td>重跑整个组件函数 → 生成 VDOM → diff → 提交</td><td>明明只改一个数字，整棵子树重跑一遍</td><td>React（无 Compiler 时）</td></tr>
+        <tr style="background:#F3F7F4"><td><b>细粒度响应式</b><br><b>（Signals）</b></td><td><b>只更新真正读过那个值的那一个节点</b></td><td>需要运行时依赖追踪基础设施</td><td>Solid / Vue / Svelte 5<br><b>Compose</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p><b>这就是全部关联。</b>Signals 不关心你怎么分层、不关心状态该放哪、不关心业务逻辑写在哪——<b>它只负责把"值变了"这件事，精准送到真正需要它的那一个显示点上。</b></p>
+
+  <h3>4.6 一个补充：机制会反作用于架构</h3>
+
+  <p>虽然 Signals 只是第 3 层的实现细节，但它不是"无副作用的选择"——<b>工具会塑造你写代码的习惯</b>：</p>
+
+  <div class="duo">
+    <div>
+      <h5><span class="badge good">Signals 下</span></h5>
+      <p>派生状态近乎免费（<code>computed</code> 自动缓存 + 惰性重算）→ 你会自然地<b>多用派生、少存状态</b> → 状态层变薄 → <b>架构更干净</b>。</p>
+      <p>而且状态可放在组件外、模块级 → <b>状态不必困在组件里</b>。</p>
+    </div>
+    <div>
+      <h5><span class="badge bad">粗粒度 VDOM 下</span></h5>
+      <p>多一次重渲染有成本，人们倾向于把中间结果缓存进 state → <b>状态膨胀</b> → 到处是 <code>useMemo</code> / 依赖数组 → <b>心智负担</b>。</p>
+    </div>
+  </div>
+
+  <p>回看你的代码，这个效应已经发生了：</p>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">…/ui/viewmodel/HomeViewModel.kt</span>
+      <span class="code-lang">KOTLIN</span>
+    </div>
+<pre><code><span class="c">// 你没有把"过滤后的列表"存成一份状态，而是算出来的</span>
+<span class="k">val</span> filteredRules: StateFlow&lt;List&lt;ScheduleRuleEntity&gt;&gt; =
+    combine(rules, _selectedTab) { all, tab -&gt; <span class="c">/* 过滤 + 排序 */</span> }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(<span class="n">5000</span>), emptyList())</code></pre>
+  </div>
+
+  <div class="callout rule">
+    <span class="ct">这正是"工具塑造架构"的实证</span>
+    <p>Compose 给了你细粒度响应式之后，<b>"算出来而不是存一份"</b>就成了自然的写法——你甚至没意识到这是一个架构决策。<br>
+    <b>所以选型不是中性的：你选的工具，会悄悄改变你写代码的默认姿势。</b></p>
+  </div>
+</section>
+
+<!-- ==================== 第 5 章 ==================== -->
+<section id="ch5">
+  <div class="chapter-head">
+    <span class="num">第五章 · CHAPTER Ⅴ</span>
+    <h2>包到底怎么分</h2>
+    <p class="lead">回到第 0 章那个问题。现在你有了判断依据，可以自己做了。</p>
+  </div>
+
+  <div class="callout key">
+    <span class="ct">先把话说破</span>
+    <p><b>MVVM 只规定逻辑角色（View / ViewModel / Model），一个字都没提目录怎么建。</b><br>
+    分包是工程实践，不是架构规范——所以它才有下面这些不同的做法。</p>
+  </div>
+
+  <h3>5.1 两种主流组织法</h3>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 5-1　按层分 vs 按功能分</div>
+    <table>
+      <thead><tr><th style="width:14%"></th><th style="width:43%">按层分（layer-first）</th><th>按功能分（feature-first）</th></tr></thead>
+      <tbody>
+        <tr><td><b>长相</b></td><td><code>ui/screens/</code> <code>ui/viewmodel/</code> <code>domain/</code> <code>data/</code></td><td><code>feature/home/</code> <code>feature/editor/</code> <code>core/domain/</code></td></tr>
+        <tr><td><b>每个功能的代码</b></td><td>分散在 4 个包里</td><td>集中在 1 个包里</td></tr>
+        <tr><td><b>适合</b></td><td><b>小项目</b>（功能 &lt; 10 个）</td><td><b>中大项目</b>（多人协作、功能多）</td></tr>
+        <tr><td><b>优点</b></td><td>新手一眼看懂分层在哪</td><td>改一个功能只开一个目录；删功能直接删文件夹</td></tr>
+        <tr><td><b>致命缺点</b></td><td>功能一多，<code>screens/</code> 下堆 50 个文件，且<b>改一个需求要在 4 个目录间来回跳</b></td><td>分层约束变弱，容易出现 A feature 直接 import B feature 的内部类</td></tr>
+        <tr><td><b>你的项目</b></td><td><b style="color:#1E4638">✅ 就是这个（正确选择）</b></td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p><b>你的项目选 layer-first 是对的</b>——只有 2 个界面，feature-first 会变成"每个 feature 包里各放 2 个文件"的形式主义。</p>
+
+  <div class="callout rule">
+    <span class="ct">判断标准</span>
+    <p><b>当"改一个需求要在几个目录间跳"让你开始烦躁时，就该换成 feature-first 了。</b><br>
+    拿不准就先按层分——小项目的重构成本极低，别提前设计。</p>
+  </div>
+
+  <h3>5.2 你的真实包结构（逐包对照回第 0 章的约束）</h3>
+
+  <div class="tree">
+com.screensaver
+├── ScreensaverApplication.kt        <span class="dim">应用入口（动态注册 ScreenOnReceiver）</span>
+│
+├── <b>data/</b>                            <span class="dim">约束：只许被 domain / ViewModel 依赖</span>
+│   ├── local/     AppDatabase · Converters · <b>dao/</b>RuleDao
+│   │   └── entities/  ScheduleRuleEntity · WallpaperDomain
+│   └── repository/  ScreensaverRepository
+│
+├── <b>domain/</b>                          <span class="hi">约束：不许 import 任何 android.*（→ 可 JVM 单测）</span>
+│   └── scheduler/  ScheduleEngine
+│
+├── <b>scheduler/</b>                       <span class="dim">约束：全是 Android 系统能力封装</span>
+│   │                                 <span class="dim">（与 domain/scheduler 同名，但约束不同）</span>
+│   ├── AlarmScheduler · WallpaperApplier
+│   └── BootCompletedReceiver · ScreenOnReceiver · WallpaperSwitchReceiver
+│
+├── <b>di/</b>          AppContainer        <span class="dim">手动依赖注入：决定谁 new 谁</span>
+│
+└── <b>ui/</b>                              <span class="dim">约束：不许直接 import Room；不持有长期状态</span>
+    ├── MainActivity · AppContext
+    ├── <b>screens/</b>     HomeScreen · RuleEditorScreen        <span class="dim">← View</span>
+    ├── <b>viewmodel/</b>   HomeViewModel · RuleEditorViewModel  <span class="dim">← ViewModel</span>
+    │                AppViewModelFactory
+    ├── components/ DayTimelineBar · TimeAxisPicker
+    ├── theme/      Theme · Dimens · Type · Gradient
+    └── util/       TimeFormat                          <span class="dim">← 灰色地带，见 3.2</span>
+  </div>
+
+  <div class="callout key">
+    <span class="ct">这份结构值得肯定的三点</span>
+    <p>① <b><code>domain/</code> 保持了零 Android 依赖</b>，换来 15 个能在 JVM 上跑的单测；<br>
+    ② <b>没有为了"路径清爽"合并两个同名 <code>scheduler</code> 包</b>，守住了依赖约束；<br>
+    ③ <b><code>theme/</code> 与 <code>components/</code> 从 <code>screens/</code> 里分出来</b>——这是"可复用"这个变化维度的正确切分。</p>
+  </div>
+
+  <h3>5.3 这套分层不是 Android 独有</h3>
+
+  <p>最后给你一个跨端对照，用来验证"分层直觉"是通用的。以 FastAPI / Spring 这类后端为例：</p>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 5-2　后端分层 vs MVVM 的职责对应</div>
+    <table>
+      <thead><tr><th style="width:26%">后端</th><th style="width:30%">MVVM（你的项目）</th><th>共同职责</th></tr></thead>
+      <tbody>
+        <tr><td><code>controller/</code> <code>router</code></td><td><code>ui/viewmodel/</code>（部分）</td><td>接收入口、参数校验、编排</td></tr>
+        <tr><td><code>service/</code></td><td><code>ui/viewmodel/</code> + <code>domain/</code></td><td>业务规则。<b>差异</b>：后端 service 通常无状态，ViewModel 持有状态且活得更久</td></tr>
+        <tr><td><code>dao/</code> <code>repository/</code></td><td><code>data/repository/</code> + <code>dao/</code></td><td>数据访问。<b>完全同构，连名字都一样</b></td></tr>
+        <tr><td><code>entity/</code> <code>dto/</code> <code>schema/</code></td><td><code>entities/</code> + 各 <code>UiState</code></td><td>数据契约。<b>差异</b>：移动端多一类专供 UI 的状态类</td></tr>
+        <tr><td>DI 容器 / <code>Depends()</code></td><td><code>AppContainer</code></td><td>装配，让上层不负责 <code>new</code></td></tr>
+        <tr style="background:#FBEBE3"><td><b>— 无对应 —</b></td><td><code>scheduler/</code>（3 个 Receiver）</td><td><b>移动端独有</b>：闹钟 / 广播 / 开机也是"入口"，后端通常只有 HTTP 一个入口</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout rule">
+    <span class="ct">最后一行特别重要</span>
+    <p><b>移动端比后端多一层复杂度：你的应用有多个入口</b>（用户点击、闹钟触发、亮屏广播、开机广播），它们都得汇聚到同一条业务路径上——你的 <code>AppContainer.applyCurrentNow()</code> 就是干这个的。<br>
+    设计多入口系统时，第一件事就是<b>找出那个"所有入口最终都调用的唯一函数"</b>，否则同一段逻辑会在多处走样。<span style="color:#C0522B">（顺带说：你那个锁屏 bug 的另一面，正是"两个外部入口都失效了，只剩手动入口"。）</span></p>
+  </div>
+</section>
+
+<!-- ==================== 第 6 章 ==================== -->
+<section id="ch6">
+  <div class="chapter-head">
+    <span class="num">收束 · CLOSING</span>
+    <h2>可带走的三条，与一份自检清单</h2>
+  </div>
+
+  <h3>三条思想</h3>
+
+  <ol class="steps">
+    <li><b>状态应该活得比 UI 久，且不该由 UI 持有</b><span>这是 MVVM、Flux、乃至服务端 session 设计的共同底层逻辑。凡是"刷新一下就没了但你希望它还在"的东西，都属于这一层。</span></li>
+    <li><b>依赖方向要单向，越界的代价要尽量高</b><span>单向数据流不是为了好看，是为了让"当前界面对不对"变成可推理的纯函数。<b>能下沉到编译器检查的约束（如 <code>StateFlow</code> 对外只读）才是真约束。</b></span></li>
+    <li><b>能算的别存，能约束在存储层的别留给逻辑层</b><span>派生状态用 <code>combine</code>；跨午夜在编辑器拆成两条而不是在引擎里写 wrap-around。<b>复杂度前移到数据模型，后面的代码会成片地变简单。</b></span></li>
+  </ol>
+
+  <h3>三条忠告</h3>
+
+  <div class="callout rule">
+    <span class="ct">一 · 判断架构好坏的尺子只有一把</span>
+    <p><b>改一个需求，要动几个地方？</b><br>
+    你那个"屏保 Tab 新建、默认域却是桌面"的 bug，本质就是<b>状态归属没想清楚</b>——首页的"当前 Tab"没打通到编辑器，只能在层与层之间用参数硬传。<br>
+    <b>动手画"状态归属表"的时间，永远是值得的。</b></p>
+  </div>
+
+  <div class="callout key">
+    <span class="ct">二 · 别把目录好看当成架构好</span>
+    <p>每当你想调整包名让它"更清爽"时，先问：<b>我是在改依赖约束，还是在改外观？</b><br>
+    如果是后者——停手，去看 import 列表。那里才有真问题。</p>
+  </div>
+
+  <div class="callout pit">
+    <span class="ct">三 · 别急着重写老项目</span>
+    <p>为架构纯粹性去返工，性价比通常低于修掉一个真实 bug。<br>
+    <b>例外只有一种：当架构问题已经在持续产生 bug 时，它就不是纯粹性问题，而是成本问题了。</b></p>
+  </div>
+
+  <h3>自检清单（写完代码对着过一遍）</h3>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th style="width:8%"></th><th style="width:46%">检查项</th><th>不合格的样子</th></tr></thead>
+      <tbody>
+        <tr><td>☐</td><td>这个目录允许 import 什么？答得上来吗</td><td>答不上来 → 它只是个文件夹</td></tr>
+        <tr><td>☐</td><td>ViewModel 里有没有出现 <code>Context</code> / View 类型</td><td>有 → 泄漏风险 + 不可单测</td></tr>
+        <tr><td>☐</td><td>这段逻辑能脱离界面跑吗</td><td>不能 → 考虑下沉到 domain 纯函数</td></tr>
+        <tr><td>☐</td><td>这个状态是"存"的还是"算"的</td><td>能算却存了 → 两份数据早晚会不一致</td></tr>
+        <tr><td>☐</td><td>这个提示是状态还是一次性事件</td><td>事件塞进 StateFlow → 旋转屏幕重复弹出</td></tr>
+        <tr><td>☐</td><td>登记了订阅，注销了吗</td><td>只 addObserver 不 remove → 泄漏</td></tr>
+        <tr><td>☐</td><td>改这个需求，要动几个目录</td><td>超过 3 个 → 变化边界没划对</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ==================== 附录 ==================== -->
+<section id="appx">
+  <div class="chapter-head">
+    <span class="num">附录 · APPENDIX</span>
+    <h2>术语与代码索引</h2>
+  </div>
+
+  <h3>术语速查</h3>
+  <dl class="gloss">
+    <div><dt>MVC</dt><dd>Model / View / Controller。只规定角色不规定边界——这是它所有问题的源头。</dd></div>
+    <div><dt>MVVM</dt><dd>Model / View / ViewModel。核心增量是 ViewModel 这个"活得比 View 久的状态宿主"。</dd></div>
+    <div><dt>三层架构</dt><dd>表现层 → 业务层 → 数据层的纵向切分。<b>与 MVC 正交</b>，常被混为一谈。</dd></div>
+    <div><dt>UDF 单向数据流</dt><dd>事件上行、状态向下，方向不可逆。可预测性的来源。</dd></div>
+    <div><dt>ViewModelStore</dt><dd>让 ViewModel 活得比 Activity 长的那个容器——MVVM 能成立的物理基础。</dd></div>
+    <div><dt>StateFlow</dt><dd>有初值 / 只留最新 / equals 去重的<b>粗粒度</b>状态容器，需显式 collect。</dd></div>
+    <div><dt>SharedFlow</dt><dd>不留存历史的一次性事件通道，用于 Toast / 导航 / 提示。</dd></div>
+    <div><dt>Signal 信号</dt><dd><b>细粒度</b>响应式单元：读即订阅，依赖图自动生成。<b>属第 3 层原语，不是架构。</b></dd></div>
+    <div><dt>读即订阅（auto-tracking）</dt><dd>Signals 的核心机制：读取时自动登记依赖，无需手写依赖数组。</dd></div>
+    <div><dt>自动清理</dt><dd>effect 重跑前摘掉旧依赖登记。<b>正确性要求，不是优化</b>——缺了会在条件分支下产生幽灵更新。</dd></div>
+    <div><dt>派生状态</dt><dd>由其他状态算出来的状态，不落库不缓存，随源自动重算（<code>combine</code>）。</dd></div>
+    <div><dt>变化边界</dt><dd>改一个需求时波及的代码范围。架构质量的核心度量。</dd></div>
+  </dl>
+
+  <h3>本讲义引用的项目文件</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th style="width:46%">文件</th><th>出现位置</th></tr></thead>
+      <tbody>
+        <tr><td><code>domain/scheduler/ScheduleEngine.kt</code></td><td>图 0-1（零 Android 依赖）；3.1（object / 剪开拉直 / null 语义）</td></tr>
+        <tr><td><code>scheduler/AlarmScheduler.kt</code></td><td>图 0-1（7 个 android.* import，与 domain 对比）</td></tr>
+        <tr><td><code>ui/screens/HomeScreen.kt</code></td><td>2.2（订阅与事件上报）；2.4 坑二（ON_RESUME 转发）</td></tr>
+        <tr><td><code>ui/viewmodel/HomeViewModel.kt</code></td><td>1.3（只改状态不管 UI）；2.3（派生状态与 WhileSubscribed）</td></tr>
+        <tr><td><code>ui/viewmodel/RuleEditorViewModel.kt</code></td><td>2.4 坑一（StateFlow + SharedFlow 双通道）</td></tr>
+        <tr><td><code>ui/util/TimeFormat.kt</code></td><td>3.2（灰色地带：nowMinuteOfDay 不是纯函数）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>关于 Signals 的行业现状（一句话带过）</h3>
+  <p style="font-size:14.5px;color:var(--ink-2)">细粒度响应式在 2026 年已成为前端跨框架共识（Angular 弃 zone.js、Vue Vapor Mode、Svelte 5 Runes、Solid、Preact 均已采用；React 是例外，用编译器而非改响应式模型）。TC39 的 Signals 标准化提案<b>截至 2026-08 仍处 Stage 1</b>，两年多未申请进入 Stage 2，且故意不含 <code>effect</code> API——<b>生产代码请使用框架自带的成熟实现，不要在提案上建东西</b>。<br>
+  <span style="color:var(--ink-3)">（这部分是行业资讯，与 MVVM 本身无关，故本讲义不展开。）</span></p>
+</section>
+
+<footer>
+  <div class="f-main">
+    <span><b>Agent 平台</b>　WorkBuddy</span>
+    <span><b>LLM 基座</b>　混元（Hy4）</span>
+    <span><b>编排日期</b>　2026-09-02</span>
+    <span><b>案例项目</b>　Screensaver（定时壁纸 · Android）</span>
+  </div>
+  <div class="note">
+    本讲义由多轮对话提炼编排而成。所有项目代码均取自真实源码并逐行核对；文中两段 Signals 实现（极简版 / 完整版）已用 Node.js 实际运行验证，输出与文中标注一致。<br>
+    内容仅供学习参考，技术判断请结合项目实际情况独立进行。
+  </div>
+</footer>
+
+</main>
+</div>
+
+<script>
+(function(){
+  var bar = document.getElementById('progress');
+  function upd(){
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    bar.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + '%';
+  }
+  document.addEventListener('scroll', upd, {passive:true});
+  window.addEventListener('resize', upd);
+  upd();
+})();
+
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+  var targets = links.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+  function spy(){
+    var best = 0, i;
+    for (i = 0; i < targets.length; i++){
+      if (targets[i] && targets[i].getBoundingClientRect().top <= 120) best = i;
+    }
+    links.forEach(function(a, idx){ a.classList.toggle('active', idx === best); });
+  }
+  document.addEventListener('scroll', spy, {passive:true});
+  spy();
+})();
+</script>
+
+</body>
+</html>

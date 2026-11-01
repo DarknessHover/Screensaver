@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>工程素养三讲 · 门禁 / CI-CD / 类型系统</title>
+<style>
+  :root{
+    --bg:#0e1116; --surf:#151a21; --surf2:#1b222c; --surf3:#222b38;
+    --line:#28313f; --line2:#39465a;
+    --text:#dfe6f0; --muted:#8d9bb0; --faint:#6b7789;
+    --amber:#f0b429; --blue:#58a6ff; --green:#3fb950; --red:#f85149;
+    --purple:#bc8cff; --teal:#2dd4bf;
+    --mono:"JetBrains Mono","Cascadia Code",Consolas,"Courier New",monospace;
+    --sans:"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    --serif:Georgia,"Songti SC","Noto Serif SC",serif;
+  }
+  html[data-theme="light"]{
+    --bg:#fbfaf7; --surf:#ffffff; --surf2:#f4f1ea; --surf3:#ece7dc;
+    --line:#e4dfd3; --line2:#cfc7b6;
+    --text:#20242b; --muted:#5f6672; --faint:#8a8f99;
+    --amber:#b45309; --blue:#1f6feb; --green:#1a7f37; --red:#c0392b;
+    --purple:#7c3aed; --teal:#0f766e;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth;scroll-padding-top:24px}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:var(--sans);font-size:16px;line-height:1.85;
+    -webkit-font-smoothing:antialiased;
+  }
+  #prog{position:fixed;top:0;left:0;height:2px;width:0;background:var(--amber);z-index:99}
+  #tt{position:fixed;top:14px;right:16px;z-index:100;background:var(--surf2);border:1px solid var(--line);
+      color:var(--text);border-radius:999px;padding:6px 13px;font-size:13px;cursor:pointer;font-family:var(--sans)}
+  #tt:hover{border-color:var(--amber);color:var(--amber)}
+  .shell{display:grid;grid-template-columns:238px minmax(0,1fr);gap:44px;max-width:1180px;margin:0 auto;padding:0 26px 120px}
+  nav.toc{position:sticky;top:26px;align-self:start;max-height:calc(100vh - 52px);overflow-y:auto;padding:34px 0 20px}
+  nav.toc .ttl{font-size:11px;letter-spacing:.18em;color:var(--faint);text-transform:uppercase;margin:0 0 14px;font-weight:700}
+  nav.toc a{display:block;color:var(--muted);text-decoration:none;font-size:13.5px;padding:5px 0 5px 12px;
+            border-left:2px solid var(--line);line-height:1.5}
+  nav.toc a:hover{color:var(--amber);border-left-color:var(--amber)}
+  nav.toc a.sub{padding-left:24px;font-size:12.5px;color:var(--faint)}
+  nav.toc a.sub:hover{color:var(--amber)}
+  main{padding-top:34px;min-width:0}
+  @media(max-width:1000px){
+    .shell{grid-template-columns:1fr;gap:0;padding:0 18px 80px}
+    nav.toc{position:static;max-height:none;padding:20px 0 0;border-bottom:1px solid var(--line);margin-bottom:10px}
+    nav.toc a{display:inline-block;border-left:none;border-bottom:1px solid var(--line);margin:0 10px 0 0;padding:2px 0}
+    nav.toc a.sub{display:none}
+  }
+  .hero{padding:56px 0 40px;border-bottom:1px solid var(--line);margin-bottom:44px}
+  .kicker{font-size:12px;letter-spacing:.24em;color:var(--amber);text-transform:uppercase;font-weight:700;margin-bottom:18px}
+  h1{font-size:clamp(30px,4.6vw,46px);line-height:1.25;margin:0 0 16px;letter-spacing:-.01em;font-weight:800}
+  h1 em{font-style:normal;color:var(--amber)}
+  .lede{font-size:17.5px;color:var(--muted);max-width:62ch;margin:0 0 26px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{background:var(--surf2);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:12px;color:var(--muted)}
+  .chip b{color:var(--text);font-weight:600}
+  section{margin:0 0 66px;scroll-margin-top:20px}
+  .sec-no{font-family:var(--mono);font-size:12px;color:var(--amber);letter-spacing:.16em;margin-bottom:6px}
+  h2{font-size:27px;margin:0 0 10px;letter-spacing:-.01em;font-weight:750}
+  h2+.sub{color:var(--muted);margin:0 0 26px;font-size:15px}
+  h3{font-size:19px;margin:38px 0 10px;font-weight:700;display:flex;align-items:baseline;gap:10px}
+  h3 .k{font-family:var(--mono);font-size:12px;color:var(--amber);background:var(--surf2);
+        border:1px solid var(--line);border-radius:6px;padding:2px 7px;flex:none;font-weight:600}
+  h4{font-size:15.5px;margin:24px 0 8px;color:var(--teal);font-weight:700}
+  p{margin:12px 0}
+  ul,ol{margin:12px 0;padding-left:22px}
+  li{margin:7px 0}
+  li::marker{color:var(--amber)}
+  strong{color:#fff;font-weight:700}
+  html[data-theme="light"] strong{color:#000}
+  code{background:var(--surf2);border:1px solid var(--line);padding:1px 6px;border-radius:5px;
+       font-family:var(--mono);font-size:13px;color:var(--teal)}
+  figure{margin:26px 0;background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:20px 20px 14px}
+  figure svg{display:block;width:100%;height:auto}
+  figcaption{font-size:12.5px;color:var(--faint);margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);line-height:1.7}
+  figcaption b{color:var(--muted)}
+  .tw{overflow-x:auto;margin:22px 0}
+  table{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
+  th,td{border:1px solid var(--line);padding:10px 13px;text-align:left;vertical-align:top}
+  th{background:var(--surf2);color:var(--muted);font-weight:700;font-size:13px}
+  tbody tr:nth-child(even){background:var(--surf)}
+  td code{font-size:12.5px}
+  .box{border:1px solid var(--line);border-left:3px solid var(--blue);background:var(--surf);
+       border-radius:0 12px 12px 0;padding:16px 20px;margin:22px 0}
+  .box.amber{border-left-color:var(--amber)}
+  .box.green{border-left-color:var(--green)}
+  .box.red{border-left-color:var(--red)}
+  .box.purple{border-left-color:var(--purple)}
+  .box .h{font-weight:700;font-size:14px;margin-bottom:6px;display:flex;gap:8px;align-items:center;color:var(--blue)}
+  .box.amber .h{color:var(--amber)} .box.red .h{color:var(--red)}
+  .box.green .h{color:var(--green)} .box.purple .h{color:var(--purple)}
+  .box p:last-child{margin-bottom:0}
+  .box p:first-of-type{margin-top:0}
+  blockquote{margin:22px 0;padding:16px 22px;background:var(--surf);border:1px solid var(--line);
+             border-radius:12px;font-family:var(--serif);font-size:15.5px;line-height:1.8}
+  blockquote p{margin:0 0 10px}
+  blockquote p.en{font-style:italic}
+  blockquote .src{font-family:var(--sans);font-size:12.5px;color:var(--faint);margin:0}
+  blockquote .src a{color:var(--blue);text-decoration:none;border-bottom:1px dotted var(--blue)}
+  blockquote .src a:hover{color:var(--amber)}
+  .tag-off{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.06em;padding:1px 7px;
+           border-radius:4px;background:var(--green);color:#0e1116;margin-right:8px;vertical-align:2px}
+  .tag-com{background:var(--surf3);color:var(--muted);border:1px solid var(--line2)}
+  pre{background:var(--surf);border:1px solid var(--line);border-radius:12px;padding:16px 18px;
+      overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.75;margin:20px 0}
+  pre .c{color:var(--faint);font-style:italic}
+  pre .k{color:var(--purple)} pre .s{color:var(--green)} pre .t{color:var(--blue)}
+  pre .f{color:var(--amber)} pre .n{color:var(--teal)}
+  .code-h{font-size:12px;color:var(--faint);font-family:var(--mono);margin:20px 0 -12px;letter-spacing:.04em}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:22px 0}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:22px 0}
+  @media(max-width:820px){.g2,.g3{grid-template-columns:1fr}}
+  .card{background:var(--surf);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .card h5{margin:0 0 8px;font-size:14.5px;color:var(--amber)}
+  .card p{margin:0;font-size:14px;color:var(--muted)}
+  ol.check{list-style:none;padding:0;counter-reset:ck}
+  ol.check li{counter-increment:ck;position:relative;padding-left:42px;margin:14px 0}
+  ol.check li::before{content:counter(ck);position:absolute;left:0;top:1px;width:26px;height:26px;
+    background:var(--surf2);border:1px solid var(--line2);border-radius:7px;color:var(--amber);
+    font-family:var(--mono);font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:700}
+  footer{border-top:1px solid var(--line);padding-top:28px;margin-top:60px;color:var(--faint);font-size:13px}
+  footer a{color:var(--blue);text-decoration:none}
+  footer a:hover{color:var(--amber)}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13.5px;margin:10px 0}
+  .kv dt{color:var(--muted);font-family:var(--mono);font-size:12.5px;white-space:nowrap}
+  .kv dd{margin:0}
+  hr.soft{border:0;border-top:1px dashed var(--line);margin:34px 0}
+  a{color:var(--blue)}
+</style>
+</head>
+<body>
+<div id="prog"></div>
+<button id="tt" title="切换明暗主题">◐ 主题</button>
+
+<div class="shell">
+<nav class="toc">
+  <p class="ttl">目录 · Contents</p>
+  <a href="#pre">写在前面</a>
+  <a href="#ch1">一 · 门禁 Gate</a>
+  <a href="#s1-1" class="sub">1.1 一句话定义</a>
+  <a href="#s1-2" class="sub">1.2 两类门禁</a>
+  <a href="#s1-3" class="sub">1.3 阶段门的来历</a>
+  <a href="#s1-4" class="sub">1.4 门里装什么</a>
+  <a href="#s1-5" class="sub">1.5 质量门禁实例</a>
+  <a href="#s1-6" class="sub">1.6 合并门禁</a>
+  <a href="#s1-7" class="sub">1.7 门禁的三种死法</a>
+  <a href="#ch2">二 · CI / CD</a>
+  <a href="#s2-1" class="sub">2.1 为何总在合并时听到</a>
+  <a href="#s2-2" class="sub">2.2 CI 的权威定义</a>
+  <a href="#s2-3" class="sub">2.3 两个 CD 的区别</a>
+  <a href="#s2-4" class="sub">2.4 流水线的零件</a>
+  <a href="#s2-5" class="sub">2.5 门禁与流水线</a>
+  <a href="#s2-6" class="sub">2.6 左移 Shift-Left</a>
+  <a href="#ch3">三 · 类型系统</a>
+  <a href="#s3-1" class="sub">3.1 从一个真实困惑出发</a>
+  <a href="#s3-2" class="sub">3.2 错误暴露的时机</a>
+  <a href="#s3-3" class="sub">3.3 静态 vs 动态</a>
+  <a href="#s3-4" class="sub">3.4 强 vs 弱（含陷阱）</a>
+  <a href="#s3-5" class="sub">3.5 二维矩阵</a>
+  <a href="#s3-6" class="sub">3.6 四门语言的自述</a>
+  <a href="#s3-7" class="sub">3.7 推断 ≠ 动态</a>
+  <a href="#s3-8" class="sub">3.8 空安全：编译期红线</a>
+  <a href="#ch4">四 · 负责人视角的审查</a>
+  <a href="#ch5">五 · 落地清单</a>
+  <a href="#app">附录 · 出处与自检</a>
+</nav>
+
+<main>
+
+<header class="hero">
+  <p class="kicker">Engineering Literacy · Three Lectures</p>
+  <h1>工程素养三讲：<em>门禁</em>、<em>CI/CD</em><br/>与<em>类型系统</em></h1>
+  <p class="lede">
+    从「文档里反复出现的门禁到底指什么」出发，串起持续集成与持续交付的完整图景，
+    再落到「为什么 Kotlin 点 Run 还会报红」这个具体困惑背后的语言机制。
+    三个话题看似分散，其实共用同一条主线：<b>把质量检查尽量往左移，用统一的尺子代替个人自觉。</b>
+  </p>
+  <div class="meta">
+    <span class="chip">整理日期 <b>2026-08-29</b></span>
+    <span class="chip">来源 <b>对话实录 + 官方/权威文档逐条核验</b></span>
+    <span class="chip">引文 <b>13 条可回溯出处</b></span>
+    <span class="chip">适用 <b>初级 → 项目负责人</b></span>
+  </div>
+</header>
+
+<!-- ========================= 写在前面 ========================= -->
+<section id="pre">
+  <p class="sec-no">00 / PROLOGUE</p>
+  <h2>写在前面：这三讲是一根线上的三个结</h2>
+  <p class="sub">不要把它们当成三个孤立名词背下来。</p>
+
+  <p>
+    如果只看字面，<strong>门禁</strong>讲的是流程，<strong>CI/CD</strong>讲的是工具链，<strong>类型系统</strong>讲的是语言设计——
+    三者风马牛不相及。但它们回答的是同一个问题：
+  </p>
+
+  <blockquote>
+    <p style="font-size:17px"><b>「一个缺陷，最早可以在什么时候、被谁、用什么方式拦下来？」</b></p>
+    <p class="src">门禁回答「在哪个关卡拦」，CI/CD 回答「谁去自动执行这个关卡」，类型系统回答「编译器能替你拦掉多少」。</p>
+  </blockquote>
+
+  <p>
+    所以这份教材的阅读顺序是有讲究的：先看<strong>门禁</strong>（建立"关卡思维"），
+    再看<strong>CI/CD</strong>（看关卡如何被自动化），最后看<strong>类型系统</strong>（看最左端那道关——编译器——到底能做什么、不能做什么）。
+  </p>
+
+  <div class="box amber">
+    <p class="h">⚑ 关于引文的两点说明</p>
+    <p>
+      ① 文中带 <span class="tag-off">官方</span> 标记的引文，均逐字取自官方或权威一手文档
+      （JetBrains / OpenJDK / Python 官方 / MDN / GitHub Docs / GitLab Docs / SonarSource / PEP），英文原文照录。
+      <span class="tag-off tag-com">社区</span> 标记的是社区、百科或教材整理，只用于补充时间线与背景，不作为定义依据。<br/>
+      ② 有一处我要<strong>主动更正</strong>之前对话里的说法：Python 官方文档<strong>并没有</strong>"Python 是强类型语言"这句话，
+      它只说 <code>Python uses dynamic types</code>。详见 <a href="#s3-4">3.4 节</a>。
+    </p>
+  </div>
+</section>
+
+<!-- ========================= 第一章 ========================= -->
+<section id="ch1">
+  <p class="sec-no">01 / GATE</p>
+  <h2>门禁：不达标，就禁止通行</h2>
+  <p class="sub">Quality Gate · Stage-Gate · Merge Gate</p>
+
+  <h3 id="s1-1"><span class="k">1.1</span>一句话定义</h3>
+  <p>
+    <strong>门禁（Gate）</strong>是一道硬性检查关卡：流程或代码走到这里，必须先满足一组<em>预先写死</em>的标准，
+    达标才放行，不达标就<strong>卡住</strong>。它的本质是把"质量要求"从事后救火变成事前卡点。
+  </p>
+  <p>英文文档里你会撞见三种叫法，它们不是同义词，来源完全不同——这是最容易混淆的地方：</p>
+
+  <div class="tw"><table>
+    <thead><tr><th style="width:22%">叫法</th><th style="width:19%">出处</th><th style="width:25%">卡在什么位置</th><th>不达标的后果</th></tr></thead>
+    <tbody>
+      <tr><td><b>阶段门 / Stage-Gate</b></td><td>项目管理<br/>（新产品开发流程）</td><td>项目阶段之间<br/>需求→设计→开发→测试→发布</td><td>阶段不得推进；产出 Go / Kill / Hold / Recycle 四种决策</td></tr>
+      <tr><td><b>质量门禁 / Quality Gate</b></td><td>代码分析与 CI/CD<br/>（SonarQube 等）</td><td>每次提交 / PR / 发布前</td><td>流水线失败，<b>自动阻断</b>合并或部署</td></tr>
+      <tr><td><b>合并门禁 / Merge Gate</b></td><td>代码托管平台<br/>（GitHub / GitLab 分支保护）</td><td>PR 合入受保护分支之前</td><td>合并按钮不可用，必须补齐审批或状态检查</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 id="s1-2"><span class="k">1.2</span>两类门禁：一张图看清分野</h3>
+
+  <figure>
+    <svg viewBox="0 0 720 210" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,sans-serif">
+      <defs>
+        <marker id="aA" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+          <path d="M0,0 L7,3.2 L0,6.4 z" fill="var(--muted)"/>
+        </marker>
+      </defs>
+      <g>
+        <rect x="8"   y="62" width="118" height="54" rx="9" fill="var(--surf2)" stroke="var(--line2)"/>
+        <text x="67"  y="85"  text-anchor="middle" fill="var(--text)" font-size="13" font-weight="700">① 需求分析</text>
+        <text x="67"  y="103" text-anchor="middle" fill="var(--faint)" font-size="10.5">产出 PRD</text>
+
+        <rect x="212" y="62" width="118" height="54" rx="9" fill="var(--surf2)" stroke="var(--line2)"/>
+        <text x="271" y="85"  text-anchor="middle" fill="var(--text)" font-size="13" font-weight="700">② 架构设计</text>
+        <text x="271" y="103" text-anchor="middle" fill="var(--faint)" font-size="10.5">产出 ARCH</text>
+
+        <rect x="416" y="62" width="118" height="54" rx="9" fill="var(--surf2)" stroke="var(--line2)"/>
+        <text x="475" y="85"  text-anchor="middle" fill="var(--text)" font-size="13" font-weight="700">③ 编码实现</text>
+        <text x="475" y="103" text-anchor="middle" fill="var(--faint)" font-size="10.5">产出代码+测试</text>
+
+        <rect x="620" y="62" width="94"  height="54" rx="9" fill="var(--surf2)" stroke="var(--green)"/>
+        <text x="667" y="85"  text-anchor="middle" fill="var(--text)" font-size="13" font-weight="700">④ 发布</text>
+        <text x="667" y="103" text-anchor="middle" fill="var(--green)" font-size="10.5">交付价值</text>
+      </g>
+      <g>
+        <line x1="126" y1="89" x2="152" y2="89" stroke="var(--muted)" stroke-width="1.4" marker-end="url(#aA)"/>
+        <path d="M167,62 L189,89 L167,116 L145,89 Z" fill="var(--amber)" opacity="0.16" stroke="var(--amber)" stroke-width="1.6"/>
+        <text x="167" y="93" text-anchor="middle" fill="var(--amber)" font-size="12" font-weight="800">门</text>
+        <line x1="189" y1="89" x2="208" y2="89" stroke="var(--muted)" stroke-width="1.4" marker-end="url(#aA)"/>
+
+        <line x1="330" y1="89" x2="356" y2="89" stroke="var(--muted)" stroke-width="1.4" marker-end="url(#aA)"/>
+        <path d="M371,62 L393,89 L371,116 L349,89 Z" fill="var(--amber)" opacity="0.16" stroke="var(--amber)" stroke-width="1.6"/>
+        <text x="371" y="93" text-anchor="middle" fill="var(--amber)" font-size="12" font-weight="800">门</text>
+        <line x1="393" y1="89" x2="412" y2="89" stroke="var(--muted)" stroke-width="1.4" marker-end="url(#aA)"/>
+
+        <line x1="534" y1="89" x2="560" y2="89" stroke="var(--muted)" stroke-width="1.4" marker-end="url(#aA)"/>
+        <path d="M575,62 L597,89 L575,116 L553,89 Z" fill="var(--amber)" opacity="0.16" stroke="var(--amber)" stroke-width="1.6"/>
+        <text x="575" y="93" text-anchor="middle" fill="var(--amber)" font-size="12" font-weight="800">门</text>
+        <line x1="597" y1="89" x2="616" y2="89" stroke="var(--muted)" stroke-width="1.4" marker-end="url(#aA)"/>
+      </g>
+      <g>
+        <path d="M167,116 L167,136" stroke="var(--line2)" stroke-dasharray="3 3"/>
+        <path d="M371,116 L371,136" stroke="var(--line2)" stroke-dasharray="3 3"/>
+        <path d="M575,116 L575,136" stroke="var(--line2)" stroke-dasharray="3 3"/>
+        <rect x="120" y="140" width="380" height="46" rx="9" fill="var(--surf3)" stroke="var(--line2)"/>
+        <text x="310" y="160" text-anchor="middle" fill="var(--text)" font-size="12.5" font-weight="700">四选一的门决策：Go 通过 · Kill 终止 · Hold 暂缓 · Recycle 返工</text>
+        <text x="310" y="178" text-anchor="middle" fill="var(--muted)" font-size="11.5">通过的同时也决定了下一阶段的人 / 钱 / 时间</text>
+      </g>
+    </svg>
+    <figcaption>
+      <b>图 1 · 流程门禁（Stage-Gate）。</b>阶段是"干活的地方"，门是"决定要不要继续投钱的地方"。
+      注意门不是橡皮图章——它必须能输出 <b>Kill</b>，否则这个组织有阶段、没有门。
+    </figcaption>
+  </figure>
+
+  <h3 id="s1-3"><span class="k">1.3</span>阶段门的来历：这不是软件行业发明的</h3>
+  <p>
+    这一点常被忽略：<strong>"分阶段 + 阶段间设决策点"的思路，最早来自重资产的采购与工程管理，不是软件业。</strong>
+  </p>
+  <ul>
+    <li><b>1970 年代</b>：NASA 与美国国防部在航天 / 国防采购中采用分阶段评审（如 NASA 1972 年的 NHB 7121.2 文档），
+      逻辑是"把高风险的大笔资金拆成几段，每段结束拿证据来换下一段的钱"。<span class="tag-off tag-com">社区</span></li>
+    <li><b>1980 年代</b>：<b>Robert G. Cooper</b> 基于对数十家企业新产品的实证研究，把这套逻辑搬进商业新产品开发，
+      建立了著名的 <b>Stage-Gate&reg;</b>。术语 "stage-gate" 首次出现于他 1988 年发表在
+      <em>Journal of Marketing Management</em> 的论文；更早版本已见于其 1986 年著作
+      <em>Winning at New Products</em>。<span class="tag-off tag-com">社区</span></li>
+    <li><b>1990 年代以后</b>：CMMI 的里程碑评审、华为 IPD 体系的 DCP（决策评审点），都是这条血脉在研发组织里的落地形态。</li>
+  </ul>
+
+  <blockquote>
+    <p>产品开发与管理协会（PDMA）将 Stage-Gate 定义为——"把开发工作切分为<strong>按时间排序的若干阶段</strong>，
+       阶段之间由<strong>管理决策门</strong>隔开"的一种流程。</p>
+    <p class="src"><span class="tag-off tag-com">社区</span> 转引 PDMA 对 Stage-Gate 的定义 · 见附录 A-3</p>
+  </blockquote>
+
+  <div class="box">
+    <p class="h">◆ 为什么要知道这个来历</p>
+    <p>
+      因为门的设计感来自<strong>"资本支出决策"</strong>，不是"技术检查"。这解释了为什么阶段门的标准写得像
+      准入清单（有没有商业论证、财务测算、风险评估），而不是像单测覆盖率。
+      如果你把阶段门当技术评审来开，就跑偏了。
+    </p>
+  </div>
+
+  <h3 id="s1-4"><span class="k">1.4</span>一道门里到底装什么：三件套</h3>
+  <p>Cooper 对 Gate 的经典拆解是三样东西，缺一样这道门就是走过场：</p>
+
+  <div class="g3">
+    <div class="card">
+      <h5>① 交付物 Deliverables</h5>
+      <p>团队必须在门前交出来的东西，是<strong>看得见、可核对</strong>的成果。<br/>
+      <span style="color:var(--faint)">例：需求规格说明书、架构设计文档、测试用例集</span></p>
+    </div>
+    <div class="card">
+      <h5>② 标准 Criteria</h5>
+      <p>衡量交付物的尺子，通常<strong>在上一道门就提前定好</strong>，不能临门改标准。<br/>
+      <span style="color:var(--faint)">例：需求评审通过、架构签字、无阻塞缺陷</span></p>
+    </div>
+    <div class="card">
+      <h5>③ 产出 Output</h5>
+      <p>门的决策结果：<strong>Go / Kill / Hold / Recycle</strong>，以及对下一阶段的<strong>资源承诺</strong>（人、钱、时间）。</p>
+    </div>
+  </div>
+
+  <div class="box amber">
+    <p class="h">⚑ 一句话判断你的门是不是真的门</p>
+    <p>
+      如果过去一年里，你所在的流程<strong>从来没有 Kill 掉任何一个项目或需求</strong>，
+      那说明你只有 Stage，没有 Gate。这是阶段门最常见的失效模式。
+    </p>
+  </div>
+
+  <h3 id="s1-5"><span class="k">1.5</span>质量门禁长什么样：以 SonarQube 为例</h3>
+  <p>流程门靠人评审，质量门靠机器算指标。SonarSource 官方给的定义是：</p>
+
+  <blockquote>
+    <p class="en">"Quality gates enforce a quality policy for the results of code review and analysis in your organization by answering one question: <b>is my project ready for release?</b>"</p>
+    <p>质量门禁通过回答一个问题来落地组织的质量政策：<b>我的项目可以发布了吗？</b></p>
+    <p class="src"><span class="tag-off">官方</span> <a href="https://docs.sonarqube.org/latest/user-guide/quality-gates" target="_blank" rel="noopener">SonarQube Server Documentation — Understanding quality gates</a></p>
+  </blockquote>
+
+  <p>它的机制极其朴素：<strong>一条条件 = 指标 + 比较运算符 + 阈值</strong>。任一条件命中，整道门就失败。</p>
+
+  <div class="code-h">// 一条条件的构成（官方示例）</div>
+<pre><span class="c">Metric             : Blocker issue      ← 指标：严重阻塞级问题数</span>
+<span class="c">Comparison operator : &gt;                 ← 运算符：大于</span>
+<span class="c">Error value         : 0                 ← 阈值：0</span>
+
+<span class="c">→ 读作："不允许存在任何 Blocker 级问题"。命中即 Quality Gate FAILED。</span></pre>
+
+  <p>官方内置的「Sonar way」门禁只有四条，全部针对<strong>新增代码</strong>（New Code）：</p>
+
+  <div class="g2">
+    <div class="card"><h5>① 不引入新问题</h5><p>No new issues are introduced</p></div>
+    <div class="card"><h5>② 安全热点全部已复核</h5><p>All new Security Hotspots are reviewed</p></div>
+    <div class="card"><h5>③ 新代码测试覆盖率 ≥ 80.0%</h5><p>New code test coverage ≥ 80.0%</p></div>
+    <div class="card"><h5>④ 新代码重复率 ≤ 3.0%</h5><p>Duplication in new code ≤ 3.0%</p></div>
+  </div>
+
+  <div class="box green">
+    <p class="h">◆ 这里藏着一个非常值得抄回家的设计哲学</p>
+    <p>
+      <strong>门禁只看新代码，不看存量代码。</strong>官方的原话精神是："把高标准立在新代码上，
+      你就不必担心要去满足旧代码的标准、替别人擦屁股。"
+      反面教材是给存量代码设 <code>Overall Coverage &gt; 80%</code>——老项目一旦挂上这条，流水线会<strong>永久红</strong>，
+      团队只能集体忽略门禁，门禁就此死亡。
+    </p>
+  </div>
+
+  <p>最关键的一句，它把质量门和"拦截"直接绑在一起：</p>
+  <blockquote>
+    <p class="en">"It can be used to <b>block the merge of the pull request</b> if the quality gate fails."</p>
+    <p>如果质量门禁失败，它可以用来<strong>阻断该 PR 的合并</strong>。</p>
+    <p class="src"><span class="tag-off">官方</span> SonarQube Server Documentation — Understanding quality gates</p>
+  </blockquote>
+
+  <h3 id="s1-6"><span class="k">1.6</span>合并门禁：平台层的那把锁</h3>
+  <p>质量门是"算出结果"，合并门是"执行拦截"。GitHub 官方对分支保护规则的描述是：</p>
+
+  <blockquote>
+    <p class="en">"You can create a branch protection rule to enforce certain workflows for one or more branches, such as <b>requiring an approving review or passing status checks</b> for all pull requests merged into the protected branch."</p>
+    <p>你可以创建分支保护规则，为合并进受保护分支的所有 PR 强制要求"审批通过"或"状态检查通过"。</p>
+    <p class="src"><span class="tag-off">官方</span> <a href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/managing-a-branch-protection-rule" target="_blank" rel="noopener">GitHub Docs — Managing a branch protection rule</a></p>
+  </blockquote>
+
+  <p>常见的合并门禁开关（对应官方设置项英文原名）：</p>
+  <ul>
+    <li><code>Require a pull request before merging</code> —— 禁止直接 push 到主干</li>
+    <li><code>Require approvals</code> —— 至少 N 人审批</li>
+    <li><code>Require status checks to pass before merging</code> —— <strong>CI 必须全绿</strong>（这就是 CI/CD 与门禁的焊接点）</li>
+    <li><code>Require review from Code Owners</code> —— 指定目录必须由对应负责人审</li>
+    <li><code>Require branches to be up to date before merging</code> —— 合并前必须先同步主干</li>
+  </ul>
+
+  <h3 id="s1-7"><span class="k">1.7</span>门禁的三种死法</h3>
+  <div class="g3">
+    <div class="card"><h5>死法一：过严</h5><p>门太多、阈值太狠 → 交付变慢 → 团队想办法绕过去。门禁要<strong>少而准</strong>：先立 3 条，跑顺了再加。</p></div>
+    <div class="card"><h5>死法二：形同虚设</h5><p>标准设了不执行：Approve 随便点、红灯照样合并。一旦有人发现红灯能过，这道门当场失效。</p></div>
+    <div class="card"><h5>死法三：当 KPI 用</h5><p>门禁是<strong>质量护栏</strong>，不是考核工具。一旦用它卡人绩效，上报的数据立刻失真。</p></div>
+  </div>
+</section>
+
+<!-- ========================= 第二章 ========================= -->
+<section id="ch2">
+  <p class="sec-no">02 / CI · CD</p>
+  <h2>CI/CD：把关卡装进自动流水线</h2>
+  <p class="sub">为什么这个词永远在你提 PR 的时候跳出来？</p>
+
+  <h3 id="s2-1"><span class="k">2.1</span>因为"合并到主干"就是那条扳机</h3>
+  <p>
+    现代团队的默认约定是：<code>main</code> / <code>master</code> 是<strong>受保护分支</strong>，
+    任何人都不能直接 push，必须走 PR / MR。而托管平台会在"这个 PR 要合并"的时刻<strong>自动触发流水线</strong>去跑构建和测试；
+    同时"必须 CI 全绿"又被设成了合并门禁。于是你每次提合并，背后都有一整条流水线在跑——这就是它总在合并场景被提起的原因。
+  </p>
+
+  <figure>
+    <svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,sans-serif">
+      <defs>
+        <marker id="aB" markerWidth="8" markerHeight="8" refX="6.5" refY="3" orient="auto">
+          <path d="M0,0 L6.5,3 L0,6 z" fill="var(--muted)"/>
+        </marker>
+      </defs>
+      <text x="14" y="26" fill="var(--faint)" font-size="11" letter-spacing="1.5">GIT 侧</text>
+      <rect x="14" y="38" width="150" height="52" rx="9" fill="var(--surf2)" stroke="var(--line2)"/>
+      <text x="89" y="60" text-anchor="middle" fill="var(--text)" font-size="12.5" font-weight="700">feature/my-task</text>
+      <text x="89" y="78" text-anchor="middle" fill="var(--faint)" font-size="11">git push</text>
+
+      <path d="M164,64 L226,64" stroke="var(--amber)" stroke-width="1.8" marker-end="url(#aB)"/>
+      <text x="195" y="52" text-anchor="middle" fill="var(--amber)" font-size="10.5" font-weight="700">PR</text>
+
+      <rect x="232" y="38" width="150" height="52" rx="9" fill="var(--surf2)" stroke="var(--green)"/>
+      <text x="307" y="60" text-anchor="middle" fill="var(--text)" font-size="12.5" font-weight="700">main（受保护）</text>
+      <text x="307" y="78" text-anchor="middle" fill="var(--green)" font-size="11">禁止直接 push</text>
+
+      <path d="M307,90 L307,128" stroke="var(--amber)" stroke-width="1.8" marker-end="url(#aB)"/>
+      <rect x="196" y="130" width="222" height="30" rx="15" fill="var(--amber)" opacity=".14" stroke="var(--amber)"/>
+      <text x="307" y="150" text-anchor="middle" fill="var(--amber)" font-size="12" font-weight="800">⚡ 触发流水线 TRIGGER</text>
+
+      <text x="14" y="186" fill="var(--faint)" font-size="11" letter-spacing="1.5">流水线侧</text>
+      <g>
+        <rect x="14" y="198" width="126" height="44" rx="8" fill="var(--surf2)" stroke="var(--line2)"/>
+        <text x="77" y="218" text-anchor="middle" fill="var(--text)" font-size="12">构建 Build</text>
+        <text x="77" y="234" text-anchor="middle" fill="var(--faint)" font-size="10">gradle assemble</text>
+
+        <path d="M152,220 L166,220" stroke="var(--muted)" stroke-width="1.4" marker-end="url(#aB)"/>
+        <path d="M176,198 L192,220 L176,242 L160,220 Z" fill="var(--amber)" opacity=".18" stroke="var(--amber)" stroke-width="1.5"/>
+        <text x="176" y="224" text-anchor="middle" fill="var(--amber)" font-size="10" font-weight="800">门</text>
+        <path d="M192,220 L206,220" stroke="var(--muted)" stroke-width="1.4" marker-end="url(#aB)"/>
+
+        <rect x="212" y="198" width="126" height="44" rx="8" fill="var(--surf2)" stroke="var(--line2)"/>
+        <text x="275" y="218" text-anchor="middle" fill="var(--text)" font-size="12">测试 Test</text>
+        <text x="275" y="234" text-anchor="middle" fill="var(--faint)" font-size="10">unit / integration</text>
+
+        <path d="M350,220 L364,220" stroke="var(--muted)" stroke-width="1.4" marker-end="url(#aB)"/>
+        <path d="M374,198 L390,220 L374,242 L358,220 Z" fill="var(--amber)" opacity=".18" stroke="var(--amber)" stroke-width="1.5"/>
+        <text x="374" y="224" text-anchor="middle" fill="var(--amber)" font-size="10" font-weight="800">门</text>
+        <path d="M390,220 L404,220" stroke="var(--muted)" stroke-width="1.4" marker-end="url(#aB)"/>
+
+        <rect x="410" y="198" width="126" height="44" rx="8" fill="var(--surf2)" stroke="var(--line2)"/>
+        <text x="473" y="218" text-anchor="middle" fill="var(--text)" font-size="12">质量扫描 Scan</text>
+        <text x="473" y="234" text-anchor="middle" fill="var(--faint)" font-size="10">coverage / lint / CVE</text>
+
+        <path d="M548,220 L562,220" stroke="var(--muted)" stroke-width="1.4" marker-end="url(#aB)"/>
+        <path d="M572,198 L588,220 L572,242 L556,220 Z" fill="var(--amber)" opacity=".18" stroke="var(--amber)" stroke-width="1.5"/>
+        <text x="572" y="224" text-anchor="middle" fill="var(--amber)" font-size="10" font-weight="800">门</text>
+        <path d="M588,220 L602,220" stroke="var(--muted)" stroke-width="1.4" marker-end="url(#aB)"/>
+
+        <rect x="608" y="198" width="98" height="44" rx="8" fill="var(--surf2)" stroke="var(--green)"/>
+        <text x="657" y="218" text-anchor="middle" fill="var(--text)" font-size="12" font-weight="700">允许合并</text>
+        <text x="657" y="234" text-anchor="middle" fill="var(--green)" font-size="10">✓ all green</text>
+      </g>
+    </svg>
+    <figcaption>
+      <b>图 2 · 合并动作点燃整条流水线。</b>三个菱形就是三道质量门禁；
+      任一道红，最右侧的"允许合并"就到不了——这正是 <b>Git 合并场景里 CI/CD 高频出现</b>的原因。
+    </figcaption>
+  </figure>
+
+  <h3 id="s2-2"><span class="k">2.2</span>CI 的权威定义：注意"每天"这个关键词</h3>
+
+  <blockquote>
+    <p class="en">"Continuous Integration is a software development practice where each member of a team <b>merges their changes into a codebase together with their colleagues changes at least daily</b>. Each of these integrations is <b>verified by an automated build (including test)</b> to detect integration errors as quickly as possible."</p>
+    <p>持续集成是一种软件开发实践：团队每个成员<strong>至少每天</strong>把自己改动与同事的改动合并进同一代码库；
+       每一次集成都由<strong>自动化构建（含测试）</strong>验证，以便尽快发现集成错误。</p>
+    <p class="src"><span class="tag-off">官方</span> Martin Fowler，<a href="https://martinfowler.com/articles/continuousIntegration.html" target="_blank" rel="noopener">Continuous Integration</a>（2001 年首写，2023 年重写）</p>
+  </blockquote>
+
+  <p>把这句话拆成两个可检查的条件，缺一不可：</p>
+  <div class="g2">
+    <div class="card"><h5>条件 A · 频率</h5><p>每人<strong>至少每天</strong>合入主干一次。憋一周才合一个大分支，那不叫 CI——Fowler 管那叫"那个令人沮丧的仓库"。</p></div>
+    <div class="card"><h5>条件 B · 自动验证</h5><p>每次集成必须跑<strong>自动化构建 + 测试</strong>。没有自动验证的频繁合并，只是高频地制造混乱。</p></div>
+  </div>
+
+  <div class="box amber">
+    <p class="h">⚑ 一个高频误判</p>
+    <p>
+      "我们装了 Jenkins / 配了 GitHub Actions" <strong>不等于</strong> 在做 CI。
+      Fowler 原文明说：很多人声称自己在做 CI，但一描述工作流就发现缺了关键部分。
+      判据永远是上面两条，不是那台服务器。
+    </p>
+  </div>
+
+  <h3 id="s2-3"><span class="k">2.3</span>两个 CD：交付（人点按钮）vs 部署（自己发）</h3>
+  <p>
+    CI 解决"合并不出问题"，CD 解决"发布不费人力"。两个 CD 常被混为一谈，区别只有一句：
+    <strong>交付 = 人点一下才发；部署 = 门禁过了自己发。</strong>
+  </p>
+
+  <figure>
+    <svg viewBox="0 0 720 236" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,sans-serif">
+      <path d="M22,198 L706,198" stroke="var(--line2)" stroke-width="1.2"/>
+      <text x="22" y="216" fill="var(--faint)" font-size="11">自动化程度 →</text>
+      <text x="706" y="216" text-anchor="end" fill="var(--faint)" font-size="11">人工介入 → 0</text>
+
+      <rect x="26" y="148" width="132" height="50" rx="8" fill="var(--surf2)" stroke="var(--line2)"/>
+      <text x="92" y="170" text-anchor="middle" fill="var(--muted)" font-size="12.5" font-weight="700">手工一切</text>
+      <text x="92" y="188" text-anchor="middle" fill="var(--faint)" font-size="10.5">本地打包 + 手工测</text>
+
+      <rect x="192" y="118" width="132" height="80" rx="8" fill="var(--surf2)" stroke="var(--blue)"/>
+      <text x="258" y="142" text-anchor="middle" fill="var(--blue)" font-size="12.5" font-weight="700">CI 持续集成</text>
+      <text x="258" y="160" text-anchor="middle" fill="var(--muted)" font-size="10.5">频繁合并</text>
+      <text x="258" y="176" text-anchor="middle" fill="var(--muted)" font-size="10.5">+ 自动构建 / 测试</text>
+
+      <rect x="358" y="78" width="132" height="120" rx="8" fill="var(--surf2)" stroke="var(--amber)"/>
+      <text x="424" y="102" text-anchor="middle" fill="var(--amber)" font-size="12.5" font-weight="700">持续交付 Delivery</text>
+      <text x="424" y="122" text-anchor="middle" fill="var(--muted)" font-size="10.5">产物随时可发布</text>
+      <text x="424" y="138" text-anchor="middle" fill="var(--muted)" font-size="10.5">部署动作：</text>
+      <text x="424" y="158" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="700">人点按钮</text>
+      <text x="424" y="176" text-anchor="middle" fill="var(--faint)" font-size="10">push-button deploy</text>
+
+      <rect x="524" y="38" width="132" height="160" rx="8" fill="var(--surf2)" stroke="var(--green)"/>
+      <text x="590" y="62" text-anchor="middle" fill="var(--green)" font-size="12.5" font-weight="700">持续部署 Deployment</text>
+      <text x="590" y="82" text-anchor="middle" fill="var(--muted)" font-size="10.5">过门禁即发布</text>
+      <text x="590" y="98" text-anchor="middle" fill="var(--muted)" font-size="10.5">部署动作：</text>
+      <text x="590" y="118" text-anchor="middle" fill="var(--text)" font-size="11" font-weight="700">全自动</text>
+      <text x="590" y="136" text-anchor="middle" fill="var(--faint)" font-size="10">无需人工确认</text>
+      <text x="590" y="166" text-anchor="middle" fill="var(--faint)" font-size="10">前置条件：测试可信</text>
+      <text x="590" y="182" text-anchor="middle" fill="var(--faint)" font-size="10">+ 可观测 + 快回滚</text>
+
+      <path d="M170,152 L182,122" stroke="var(--faint)" stroke-width="1.2" stroke-dasharray="3 3"/>
+      <path d="M336,122 L348,92" stroke="var(--faint)" stroke-width="1.2" stroke-dasharray="3 3"/>
+      <path d="M502,92 L514,62" stroke="var(--faint)" stroke-width="1.2" stroke-dasharray="3 3"/>
+    </svg>
+    <figcaption>
+      <b>图 3 · 自动化程度的四级阶梯。</b>台阶越高越省人力，但对"自动化测试是否可信"的依赖也越重。
+      团队通常先做到<b>持续交付</b>并稳定运行一段时间，再考虑迈向持续部署。
+    </figcaption>
+  </figure>
+
+  <p>Fowler 给"你算不算在做持续交付"的四条判据（可直接当自检清单用）：</p>
+  <blockquote>
+    <p class="en">"You're doing continuous delivery when: <b>[1]</b> Your software is deployable throughout its lifecycle · <b>[2]</b> Your team prioritizes keeping the software deployable over working on new features · <b>[3]</b> Anybody can get fast, automated feedback on the production readiness of their systems any time somebody makes a change to them · <b>[4]</b> You can perform push-button deployments of any version of the software to any environment on demand."</p>
+    <p class="src"><span class="tag-off">官方</span> Martin Fowler，<a href="https://martinfowler.com/bliki/ContinuousDelivery.html" target="_blank" rel="noopener">bliki — Continuous Delivery</a></p>
+  </blockquote>
+
+  <h3 id="s2-4"><span class="k">2.4</span>流水线的零件：四个名词一次分清</h3>
+  <p>GitLab 官方给的整体定义与最小模型，是最清晰的入门表述：</p>
+  <blockquote>
+    <p class="en">"CI/CD is a continuous method of software development, where you continuously <b>build, test, deploy, and monitor</b> iterative code changes."</p>
+    <p>CI/CD 是一种持续进行的软件开发方法：你持续地<strong>构建、测试、部署并监控</strong>迭代式的代码变更。</p>
+    <p class="src"><span class="tag-off">官方</span> <a href="https://docs.gitlab.com/ee/ci/" target="_blank" rel="noopener">GitLab Docs — Get started with GitLab CI/CD</a></p>
+  </blockquote>
+
+  <div class="g2">
+    <div class="card"><h5>Pipeline 流水线</h5><p>一次完整执行。由 commit / MR / 定时任务 / 手动触发而创建。</p></div>
+    <div class="card"><h5>Stage 阶段</h5><p>定义<strong>执行顺序</strong>。典型：<code>build → test → deploy</code>。</p></div>
+    <div class="card"><h5>Job 作业</h5><p>阶段里的具体<strong>任务</strong>，如"编译代码""跑测试"。真正干活的单元。</p></div>
+    <div class="card"><h5>Runner 执行器</h5><p>跑 job 的<strong>代理程序</strong>，装在机器或容器上。它拉代码、装环境、执行脚本。</p></div>
+  </div>
+
+  <h3 id="s2-5"><span class="k">2.5</span>门禁 与 CI/CD：容器与内容的关系</h3>
+  <p>这是把第一讲和第二讲缝起来的那一针：</p>
+  <ul>
+    <li><strong>CI/CD 是管道和引擎</strong>——谁在跑、跑什么、跑完去哪。</li>
+    <li><strong>门禁是管道里的关卡</strong>——跑到某一步必须达标，否则卡住。</li>
+  </ul>
+  <p>
+    所以这两个词总成对出现：CI/CD 负责<em>自动化执行</em>，门禁负责<em>定义什么算过关</em>。
+    图 2 里的三个菱形，既是流水线的节点，也是门禁的实例——同一件事的两种说法。
+  </p>
+
+  <h3 id="s2-6"><span class="k">2.6</span>左移 Shift-Left：门禁思想的源头口号</h3>
+  <p>这个 2001 年由 <b>Larry Smith</b> 在 <em>Dr. Dobb's Journal</em> 提出的词，是"门禁"这种做法的意识形态来源：</p>
+  <blockquote>
+    <p class="en">"Shift-left testing is how I refer to a better way of integrating the quality assurance (QA) and development parts of a software project."</p>
+    <p>左移测试，是我对"把质量保证与开发更好地融合在一起"这种做法的叫法。</p>
+    <p class="src"><span class="tag-off tag-com">社区</span> Larry Smith，Dr. Dobb's Journal（2001）· 术语公认出处</p>
+  </blockquote>
+  <p>
+    为什么叫"左"？因为流程图习惯从左到右：需求、设计、编码在<strong>左</strong>，测试、预发、生产在<strong>右</strong>。
+    把测试往左挪，就是在图上把一个方框从右推到左。背后的经济学很硬：
+    <strong>设计阶段发现一个缺陷，改几行字；生产环境发现同一个缺陷，是一次事故。</strong>
+  </p>
+  <div class="box purple">
+    <p class="h">◆ 类型系统是"最左"的那道门禁</p>
+    <p>
+      顺着这条线往下想：编译器在<strong>你按下 Run 的那一刻</strong>（甚至打字的时候）就拦下一批错误——
+      这比任何 CI 流水线都更靠左。这就是第三讲要讲的东西。
+    </p>
+  </div>
+</section>
+
+<!-- ========================= 第三章 ========================= -->
+<section id="ch3">
+  <p class="sec-no">03 / TYPE SYSTEM</p>
+  <h2>类型系统：最靠左的那道自动门禁</h2>
+  <p class="sub">为什么 Kotlin 排除了语法错误，点 Run 还是会报红？</p>
+
+  <h3 id="s3-1"><span class="k">3.1</span>从一个真实困惑出发</h3>
+  <div class="box amber">
+    <p class="h">💬 原始问题</p>
+    <p>
+      "写 Python 时，保证静态状态下没语法错误，直接运行即可；之后就算报错也是终端报错，代码不会报红。
+      而 Kotlin 即使排除了静态状态下的语法错误，点击 Run，还有可能出现新的报红。这是否和 Kotlin 的语言特性有关？"
+    </p>
+  </div>
+  <p><strong>答案：是的，而且这正是静态类型 + 编译型语言的典型特征。</strong>下面把它拆开。</p>
+
+  <h3 id="s3-2"><span class="k">3.2</span>错误暴露的时机：一张时间轴</h3>
+  <p>
+    先纠正一个细节：Python 并非"运行前完全不检查"。CPython 会先把源码编译成字节码，
+    <strong>纯语法错误（SyntaxError）在运行前就会抛</strong>。真正被推到运行时的，是<em>类型、属性、未定义名字</em>这类问题——
+    而且<strong>只有执行到那一行才爆</strong>。
+  </p>
+
+  <figure>
+    <svg viewBox="0 0 720 268" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,sans-serif">
+      <rect x="128" y="30" width="176" height="198" fill="var(--blue)"   opacity=".05"/>
+      <rect x="304" y="30" width="176" height="198" fill="var(--amber)"  opacity=".07"/>
+      <rect x="480" y="30" width="226" height="198" fill="var(--red)"    opacity=".06"/>
+      <text x="216" y="22" text-anchor="middle" fill="var(--blue)"  font-size="11.5" font-weight="700">编辑时 / IDE 提示</text>
+      <text x="392" y="22" text-anchor="middle" fill="var(--amber)" font-size="11.5" font-weight="700">编译期 COMPILE</text>
+      <text x="593" y="22" text-anchor="middle" fill="var(--red)"   font-size="11.5" font-weight="700">运行期 RUNTIME</text>
+
+      <text x="12" y="76" fill="var(--text)" font-size="12.5" font-weight="700">Python</text>
+      <text x="12" y="94" fill="var(--faint)" font-size="10">动态类型</text>
+      <rect x="128" y="64" width="578" height="36" rx="18" fill="var(--surf2)" stroke="var(--line2)"/>
+      <circle cx="330" cy="82" r="7" fill="var(--blue)"/>
+      <text x="330" y="108" text-anchor="middle" fill="var(--blue)" font-size="10.5">语法错误</text>
+      <text x="330" y="121" text-anchor="middle" fill="var(--faint)" font-size="10">SyntaxError（编字节码时）</text>
+      <circle cx="560" cy="82" r="7" fill="var(--red)"/>
+      <text x="560" y="108" text-anchor="middle" fill="var(--red)" font-size="10.5">类型 / 属性 / 未定义名</text>
+      <text x="560" y="121" text-anchor="middle" fill="var(--faint)" font-size="10">执行到那一行才爆 → 终端 traceback</text>
+
+      <text x="12" y="168" fill="var(--text)" font-size="12.5" font-weight="700">Kotlin</text>
+      <text x="12" y="186" fill="var(--faint)" font-size="10">静态类型</text>
+      <rect x="128" y="156" width="352" height="36" rx="18" fill="var(--surf2)" stroke="var(--amber)"/>
+      <rect x="304" y="156" width="176" height="36" rx="18" fill="var(--amber)" opacity=".3" stroke="var(--amber)"/>
+      <text x="392" y="172" text-anchor="middle" fill="var(--amber)" font-size="10.5" font-weight="700">语法 · 类型 · 空安全 · 引用解析</text>
+      <text x="392" y="188" text-anchor="middle" fill="var(--muted)" font-size="10">全程序一次性检查</text>
+      <circle cx="480" cy="174" r="9" fill="var(--amber)"/>
+      <text x="480" y="208" text-anchor="middle" fill="var(--amber)" font-size="10.5" font-weight="700">← 点 Run 的瞬间</text>
+
+      <rect x="128" y="228" width="578" height="34" rx="9" fill="var(--surf3)" stroke="var(--line2)"/>
+      <text x="417" y="250" text-anchor="middle" fill="var(--text)" font-size="12">Kotlin 把 Python 里"要等运行时才可能暴露"的错误，整体提前到了编译期</text>
+    </svg>
+    <figcaption>
+      <b>图 4 · 错误的暴露时机。</b>Kotlin 不是比 Python 更容易出错，
+      而是<b>更早亮灯</b>——代价是编译期必须全绿才能跑，收益是那些错误永远不会流到用户机器上。
+    </figcaption>
+  </figure>
+
+  <div class="box">
+    <p class="h">◆ 顺带解释"为什么刚才明明没红，点 Run 才红"</p>
+    <p>
+      Android Studio 编辑器的红线是<strong>轻量、局部</strong>的检查；而许多跨模块、跨文件的编译错误，
+      要等 <strong>Gradle 跑全量构建</strong>时才暴露。所以"点 Run 才红"不是编辑器失灵，
+      而是<strong>浅层检查与全量编译之间的能力差</strong>。
+    </p>
+  </div>
+
+  <h3 id="s3-3"><span class="k">3.3</span>静态 vs 动态：什么时候查类型</h3>
+  <p>这一组区分的是<strong>检查发生的时机</strong>，判据非常干净：</p>
+  <div class="tw"><table>
+    <thead><tr><th style="width:20%"></th><th style="width:40%">静态类型 Static Typing</th><th>动态类型 Dynamic Typing</th></tr></thead>
+    <tbody>
+      <tr><td><b>检查时机</b></td><td><strong>编译期</strong>（运行之前）</td><td><strong>运行期</strong></td></tr>
+      <tr><td><b>类型绑在谁身上</b></td><td>绑在<strong>变量 / 表达式</strong>上</td><td>绑在<strong>值</strong>上（变量只是名字）</td></tr>
+      <tr><td><b>变量能否换类型</b></td><td>不能。声明即定死</td><td>能。<code>x = 1</code> 后 <code>x = "a"</code> 合法</td></tr>
+      <tr><td><b>典型代价</b></td><td>要等编译；类型不匹配直接构建失败</td><td>类型错误可能潜伏到上线，只有执行到才爆</td></tr>
+      <tr><td><b>代表</b></td><td>Kotlin / Java / C# / Go / Rust / Swift / C++</td><td>Python / JavaScript / Ruby / PHP / Lua</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>Python 官方设计 FAQ 的对照表述（注意其措辞是 <code>use static types</code> / <code>uses dynamic types</code>）：</p>
+  <blockquote>
+    <p class="en">"Other languages, such as Object Pascal, Delphi, and C++, <b>use static types</b>, so it's possible to know, in an unambiguous way, what member is being assigned to. This is the main point of static typing – the compiler <b>always</b> knows the scope of every variable at compile time. <b>Python uses dynamic types.</b> It is impossible to know in advance which attribute will be referenced at runtime."</p>
+    <p class="src"><span class="tag-off">官方</span> <a href="https://docs.python.org/3/faq/design.html" target="_blank" rel="noopener">Python 3 官方文档 — Design and History FAQ</a></p>
+  </blockquote>
+
+  <h3 id="s3-4"><span class="k">3.4</span>强 vs 弱：允不允许"偷偷帮你转类型"</h3>
+  <p>
+    这一组区分的是<strong>混合类型运算时语言的态度</strong>：是拒绝并报错，还是悄悄做隐式转换。
+    MDN 对 JavaScript 的描述是教科书级别的清晰：
+  </p>
+  <blockquote>
+    <p class="en">"JavaScript is also a <b>weakly typed</b> language, which means it <b>allows implicit type conversion when an operation involves mismatched types, instead of throwing type errors</b>."</p>
+    <p>JavaScript 也是一门弱类型语言，这意味着当运算涉及不匹配的类型时，它<strong>允许隐式类型转换，而不是抛出类型错误</strong>。</p>
+    <p class="src"><span class="tag-off">官方</span> <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Data_structures" target="_blank" rel="noopener">MDN — JavaScript data types and data structures</a></p>
+  </blockquote>
+
+  <div class="code-h">// 弱类型的代价：下面四个都是 JS 里真实会发生的求值</div>
+<pre><span class="n">1</span> + <span class="s">"2"</span>        <span class="c">// → "12"    数字被隐式转成字符串，然后拼接</span>
+<span class="n">1</span> - <span class="s">"2"</span>        <span class="c">// → -1      同一对类型，换了个运算符，又转回数字</span>
+[] == <span class="k">false</span>   <span class="c">// → true    空数组 → "" → 0，false → 0，于是"相等"</span>
+<span class="k">null</span> + <span class="n">1</span>       <span class="c">// → 1       null 被当作 0 参与算术</span>
+
+<span class="c">// 对照 Python（不替你转）：</span>
+<span class="n">1</span> + <span class="s">"2"</span>        <span class="c">// → TypeError: unsupported operand type(s)</span></pre>
+
+  <div class="box red">
+    <p class="h">⚠ 重要陷阱：「强 / 弱」没有统一定义</p>
+    <p>
+      这是本讲最需要记住的一条<strong>元知识</strong>。与"静态 / 动态"有清晰判据不同，
+      <strong>"强类型""弱类型"在学术界没有公认定义</strong>。《Types and Programming Languages》作者 Benjamin C. Pierce 说过：
+    </p>
+    <blockquote style="margin:14px 0 0;background:var(--surf2)">
+      <p style="font-family:var(--serif)">"我花了几个星期……试着弄清楚『强类型』『静态类型』『安全』等术语，但我发现这异常的困难……这些术语的用法不尽相同，所以也就近乎无用。"</p>
+      <p class="src"><span class="tag-off tag-com">社区</span> 中译见附录 A-11。Virginia Tech 的开放教材 OpenDSA 同样明确建议：<strong>"你应该避免使用 strongly typed / weakly typed 这两个说法，因为它们没有普遍公认的定义。"</strong></p>
+    </blockquote>
+    <p style="margin-top:14px">
+      <strong>实践建议：</strong>在技术讨论中，把"它是强类型吗"换成三个可验证的具体问题——
+      「是否允许隐式转换？」「能否绕过类型系统？」「类型错误的检查发生在编译期还是运行期？」。
+      前三个有确定答案，最后一个"强不强"没有。
+    </p>
+  </div>
+
+  <div class="box amber">
+    <p class="h">⚑ 对之前对话的一处更正</p>
+    <p>
+      我在对话中曾把"Python 是强类型"当作官方结论给出。逐条核查后需要更正：
+      <strong>Python 官方文档（含 Design and History FAQ）从未用 "strongly typed" 描述 Python</strong>，只有 <code>Python uses dynamic types</code>。
+      把 Python 归入"动态 + 强"是<strong>社区通行归类</strong>——依据是不做隐式数值/字符串转换（<code>1 + "2"</code> 抛 <code>TypeError</code>）。
+      方向没错，但<strong>不能挂"官方"标签</strong>。这也正好演示了为什么"强/弱"要慎用。
+    </p>
+  </div>
+
+  <h3 id="s3-5"><span class="k">3.5</span>二维矩阵：两组概念互相独立</h3>
+
+  <figure>
+    <svg viewBox="0 0 720 474" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,sans-serif">
+      <defs><marker id="aC" markerWidth="8" markerHeight="8" refX="6.5" refY="3" orient="auto">
+        <path d="M0,0 L6.5,3 L0,6 z" fill="var(--faint)"/></marker></defs>
+
+      <text x="58" y="200" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="700" transform="rotate(-90 58 200)">静态 / 动态（何时查）</text>
+      <text x="404" y="458" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="700">弱 / 强（是否允许隐式转换）</text>
+
+      <rect x="140" y="46" width="264" height="176" rx="12" fill="var(--surf2)" stroke="var(--line2)"/>
+      <text x="272" y="74" text-anchor="middle" fill="var(--faint)" font-size="11">静态 + 弱</text>
+      <text x="272" y="104" text-anchor="middle" fill="var(--text)" font-size="16" font-weight="700">C · C++</text>
+      <text x="272" y="130" text-anchor="middle" fill="var(--muted)" font-size="11.5">类型在编译期就固定</text>
+      <text x="272" y="150" text-anchor="middle" fill="var(--muted)" font-size="11.5">但 void* / 指针算术</text>
+      <text x="272" y="170" text-anchor="middle" fill="var(--muted)" font-size="11.5">可轻易绕过类型系统</text>
+      <text x="272" y="198" text-anchor="middle" fill="var(--red)" font-size="11">缓冲区溢出就是代价</text>
+
+      <rect x="416" y="46" width="264" height="176" rx="12" fill="var(--green)" opacity=".1" stroke="var(--green)"/>
+      <text x="548" y="74" text-anchor="middle" fill="var(--faint)" font-size="11">静态 + 强</text>
+      <text x="548" y="104" text-anchor="middle" fill="var(--green)" font-size="16" font-weight="700">Kotlin · Java</text>
+      <text x="548" y="126" text-anchor="middle" fill="var(--green)" font-size="16" font-weight="700">Rust · Go · Swift</text>
+      <text x="548" y="154" text-anchor="middle" fill="var(--muted)" font-size="11.5">编译期定死类型</text>
+      <text x="548" y="174" text-anchor="middle" fill="var(--muted)" font-size="11.5">且默认不做隐式转换</text>
+      <text x="548" y="200" text-anchor="middle" fill="var(--green)" font-size="11">← 你的 Screensaver 在这里</text>
+
+      <rect x="140" y="238" width="264" height="176" rx="12" fill="var(--red)" opacity=".08" stroke="var(--red)"/>
+      <text x="272" y="266" text-anchor="middle" fill="var(--faint)" font-size="11">动态 + 弱</text>
+      <text x="272" y="296" text-anchor="middle" fill="var(--text)" font-size="16" font-weight="700">JavaScript · PHP</text>
+      <text x="272" y="322" text-anchor="middle" fill="var(--muted)" font-size="11.5">类型绑在值上，运行期判断</text>
+      <text x="272" y="342" text-anchor="middle" fill="var(--muted)" font-size="11.5">且做大量隐式转换</text>
+      <text x="272" y="370" text-anchor="middle" fill="var(--red)" font-size="11">1 + "2" → "12"</text>
+      <text x="272" y="392" text-anchor="middle" fill="var(--muted)" font-size="11">对策：TypeScript / eslint eqeqeq</text>
+
+      <rect x="416" y="238" width="264" height="176" rx="12" fill="var(--surf2)" stroke="var(--line2)"/>
+      <text x="548" y="266" text-anchor="middle" fill="var(--faint)" font-size="11">动态 + 强</text>
+      <text x="548" y="296" text-anchor="middle" fill="var(--text)" font-size="16" font-weight="700">Python · Ruby</text>
+      <text x="548" y="318" text-anchor="middle" fill="var(--text)" font-size="16" font-weight="700">Smalltalk · Lua</text>
+      <text x="548" y="346" text-anchor="middle" fill="var(--muted)" font-size="11.5">类型运行期才确定（官方口径）</text>
+      <text x="548" y="366" text-anchor="middle" fill="var(--muted)" font-size="11.5">但不替你做隐式转换</text>
+      <text x="548" y="394" text-anchor="middle" fill="var(--amber)" font-size="11">1 + "2" → TypeError</text>
+
+      <path d="M96,224 L96,46" stroke="var(--faint)" stroke-width="1.2" marker-end="url(#aC)"/>
+      <path d="M416,440 L680,440" stroke="var(--faint)" stroke-width="1.2" marker-end="url(#aC)"/>
+      <text x="104" y="140" fill="var(--faint)" font-size="10.5">静态 ↑</text>
+      <text x="104" y="242" fill="var(--faint)" font-size="10.5">动态 ↓</text>
+      <text x="424" y="434" fill="var(--faint)" font-size="10.5">弱 ←</text>
+      <text x="672" y="434" text-anchor="end" fill="var(--faint)" font-size="10.5">→ 强</text>
+
+      <rect x="140" y="424" width="250" height="28" rx="8" fill="var(--surf3)" stroke="var(--line2)"/>
+      <text x="265" y="443" text-anchor="middle" fill="var(--muted)" font-size="11">⚠ 强弱归类为社区通行理解，非官方定义</text>
+    </svg>
+    <figcaption>
+      <b>图 5 · 类型系统的两个正交维度。</b>纵轴问"什么时候检查"，横轴问"许不许偷偷转换"。
+      两组概念<b>互相独立</b>：C 是「静态 + 弱」，Kotlin 是「静态 + 强」，JS 是「动态 + 弱」，Python 是「动态 + 强（社区归类）」。
+    </figcaption>
+  </figure>
+
+  <h3 id="s3-6"><span class="k">3.6</span>四门语言的官方自述</h3>
+  <p>不要让二手资料替语言说话。以下是四门语言自己的口径：</p>
+
+  <div class="tw"><table>
+    <thead><tr><th style="width:14%">语言</th><th style="width:20%">官方定性</th><th>官方原句（英文照录）</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>Kotlin</b></td>
+        <td><span style="color:var(--green)">静态类型</span></td>
+        <td>"Kotlin is a multiplatform, <b>statically typed</b>, general-purpose programming language."<br/>
+          <span style="color:var(--faint);font-size:12px">— Kotlin language specification（kotlinlang.org/spec）</span></td>
+      </tr>
+      <tr>
+        <td><b>Java</b><br/><span style="color:var(--faint);font-size:12px">关于 <code>var</code></span></td>
+        <td><span style="color:var(--green)">仍是静态类型</span></td>
+        <td>"Is this dynamic typing? <b>No!</b> Variables are still statically typed, as they have always been. ...but the variable still has a <b>fixed static type</b>."<br/>
+          <span style="color:var(--faint);font-size:12px">— JEP 286 FAQ（Brian Goetz / OpenJDK）</span></td>
+      </tr>
+      <tr>
+        <td><b>Python</b></td>
+        <td><span style="color:var(--amber)">动态类型</span><br/><span style="color:var(--faint);font-size:12px">（官方不谈强弱）</span></td>
+        <td>"<b>Python uses dynamic types.</b>" · "Python doesn't have declarations."<br/>
+          <span style="color:var(--faint);font-size:12px">— Python 3 Design and History FAQ</span></td>
+      </tr>
+      <tr>
+        <td><b>JavaScript</b></td>
+        <td><span style="color:var(--amber)">动态</span> + <span style="color:var(--red)">弱</span></td>
+        <td>"JavaScript is a <b>dynamic</b> language with <b>dynamic types</b>." · "JavaScript is also a <b>weakly typed</b> language, which means it allows implicit type conversion..."<br/>
+          <span style="color:var(--faint);font-size:12px">— MDN Web Docs</span></td>
+      </tr>
+    </tbody>
+  </table></div>
+
+  <h3 id="s3-7"><span class="k">3.7</span>类型推断 ≠ 动态类型：这是最普遍的误解</h3>
+  <p>
+    Kotlin 的 <code>val x = 42</code> 看起来和 Python 的 <code>x = 42</code> 一模一样，但机制完全不同：
+  </p>
+
+  <div class="code-h">// Kotlin：推断出来的是"编译期就定死的静态类型"</div>
+<pre><span class="k">val</span> x = <span class="n">42</span>          <span class="c">// 编译器当场推断 x : Int，此后永远不能再装别的类型</span>
+x = <span class="s">"abc"</span>            <span class="c">// ✗ 编译错误：type mismatch（这就是"点 Run 才报红"的一类）</span>
+
+<span class="k">val</span> d: <span class="t">Int</span>          <span class="c">// 先声明、后赋值时，推断无从下手，必须手写类型</span>
+d = <span class="n">10</span></pre>
+
+  <p>Kotlin 官方文档对推断与"何时必须手写"的表述：</p>
+  <blockquote>
+    <p class="en">"Kotlin supports type inference and automatically identifies the data type of a declared variable. When declaring a variable, you can omit the type after the variable name."</p>
+    <p class="en">"You can use variables only after initializing them. ...you must <b>specify the data type</b> [if you declare first and initialize later]."</p>
+    <p class="src"><span class="tag-off">官方</span> <a href="https://kotlinlang.org/docs/basic-syntax.html" target="_blank" rel="noopener">Kotlin Documentation — Basic syntax</a></p>
+  </blockquote>
+
+  <div class="g3">
+    <div class="card"><h5>Python · 动态</h5><p><code>x = 42</code><br/>变量名只是贴在值上的标签，换值时标签跟着换。类型在<strong>运行期</strong>随值走。</p></div>
+    <div class="card"><h5>Kotlin · 静态 + 推断</h5><p><code>val x = 42</code><br/>编译器<strong>在编译期</strong>把 <code>x</code> 定为 <code>Int</code> 并写死。省的是你打字，不是检查。</p></div>
+    <div class="card"><h5>Java · 静态 + 局部推断</h5><p><code>var x = 42;</code><br/>仅<strong>局部变量</strong>可推断，字段/参数/返回值仍要显式写。类型同样编译期固定。</p></div>
+  </div>
+
+  <p>OpenJDK 的 JEP 286 FAQ 把这件事说得斩钉截铁：</p>
+  <blockquote>
+    <p class="en">"Is this dynamic typing? <b>No!</b> Variables are still statically typed, as they have always been. What's happening here is that you have the opportunity to let the compiler figure out the type, rather than typing it out -- but the variable still has a fixed static type."</p>
+    <p>这是动态类型吗？<strong>不是！</strong>变量仍然是静态类型的，一如既往。区别在于你让编译器去推算类型、而不是自己把它敲出来——但这个变量依然有一个固定的静态类型。</p>
+    <p class="src"><span class="tag-off">官方</span> <a href="https://cr.openjdk.org/~briangoetz/jep-286/lvti-faq.html" target="_blank" rel="noopener">FAQ for JEP 286 (Local Variable Type Inference)</a>，Brian Goetz / OpenJDK</p>
+  </blockquote>
+
+  <h3 id="s3-8"><span class="k">3.8</span>Kotlin 独有的一道编译期红线：空安全</h3>
+  <p>
+    这是 Kotlin 相较 Java 多出来的一类"点 Run 才红"，也是最值得单独讲的一条。
+    语言规范里的说法是：
+  </p>
+  <blockquote>
+    <p class="en">"The type system of Kotlin distinguishes <b>at compile time</b> between nullable and non-nullable types, achieving null-safety, i.e., guaranteeing the absence of runtime errors caused by the absence of value (i.e., null value)."</p>
+    <p>Kotlin 的类型系统<strong>在编译期</strong>区分可空与非空类型，从而实现空安全——即保证不会出现"因为值缺失（null）而引发的运行时错误"。</p>
+    <p class="src"><span class="tag-off">官方</span> <a href="https://kotlinlang.org/spec" target="_blank" rel="noopener">Kotlin language specification — Introduction</a></p>
+  </blockquote>
+
+  <figure>
+    <svg viewBox="0 0 720 208" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,sans-serif">
+      <rect x="30" y="30" width="330" height="150" rx="12" fill="var(--surf2)" stroke="var(--line2)"/>
+      <text x="195" y="56" text-anchor="middle" fill="var(--muted)" font-size="12" font-weight="700">String?　可空类型（外层全部）</text>
+      <rect x="66" y="72" width="250" height="82" rx="10" fill="var(--green)" opacity=".12" stroke="var(--green)"/>
+      <text x="191" y="100" text-anchor="middle" fill="var(--green)" font-size="13" font-weight="700">String　非空类型（内层）</text>
+      <text x="191" y="122" text-anchor="middle" fill="var(--muted)" font-size="11">可以安全调用 .length</text>
+      <text x="191" y="140" text-anchor="middle" fill="var(--muted)" font-size="11">不允许装 null</text>
+
+      <text x="410" y="62" fill="var(--red)" font-size="12.5" font-weight="700">✗ 编译错误</text>
+      <text x="410" y="84" fill="var(--muted)" font-size="11.5">val a: String&nbsp; =&nbsp; null</text>
+      <text x="410" y="106" fill="var(--faint)" font-size="11">非空类型不能装 null</text>
+
+      <text x="410" y="136" fill="var(--green)" font-size="12.5" font-weight="700">✓ 合法</text>
+      <text x="410" y="158" fill="var(--muted)" font-size="11.5">val b: String? = null</text>
+      <text x="410" y="180" fill="var(--faint)" font-size="11">但 b.length 需写成 b?.length</text>
+    </svg>
+    <figcaption>
+      <b>图 6 · 空安全的类型包含关系。</b>Kotlin 把"能不能为空"写进了类型本身，
+      于是<b>把一类典型的运行时崩溃（NPE）变成了编译期错误</b>——这是左移最干净的一次示范。
+    </figcaption>
+  </figure>
+
+  <p>所以在 Kotlin 里，一条 <code>String</code> 和一条 <code>String?</code> 是<strong>两个不同的类型</strong>，不能互相隐式赋值。
+    这也是为什么你在 Android Studio 里会看到 <code>only safe (?.) or non-null asserted (!!.) calls are allowed</code>
+    这类报错——它不是啰嗦，是编译器在替你挡 NPE。</p>
+</section>
+
+<!-- ========================= 第四章 ========================= -->
+<section id="ch4">
+  <p class="sec-no">04 / CODE REVIEW</p>
+  <h2>项目负责人视角：不同语言，审查重点不同</h2>
+  <p class="sub">顺着语言的特长来管，而不是拿同一把尺子量所有代码</p>
+
+  <p>
+    核心原则一句话：<strong>机器已经替你兜住的部分，就不要再让人花时间查；把人力投在机器查不了的地方。</strong>
+  </p>
+
+  <div class="tw"><table>
+    <thead><tr><th style="width:17%">语言类型</th><th style="width:26%">编译器 / 工具已替你兜住</th><th>人工审查与卡点应该重点放在哪</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>静态 + 强</b><br/><span style="color:var(--faint);font-size:12px">Kotlin / Java / Go / Rust</span></td>
+        <td>类型不匹配、空安全、未定义引用、可达性、部分并发误用（Rust 尤其多）</td>
+        <td>
+          ① 架构与设计决策<br/>
+          ② 并发与线程安全、生命周期、性能<br/>
+          ③ 可读性、命名与边界条件<br/>
+          ④ <strong>重点盯"绕过类型系统"的地方</strong>：<code>as</code> 强转、<code>!!</code> 非空断言、<code>Any</code>、反射、
+             Kotlin 调用 Java 时的 <strong>platform type</strong>（可空性未知，最易漏）
+        </td>
+      </tr>
+      <tr>
+        <td><b>动态 + 强</b><br/><span style="color:var(--faint);font-size:12px">Python / Ruby</span></td>
+        <td>几乎只有语法</td>
+        <td>
+          ① <strong>全面的单元测试</strong>，尤其边界与异常分支（机器不会替你跑这些路径）<br/>
+          ② 类型注解 + <strong>mypy / Pyright</strong> 静态检查（把静态护栏补回来）<br/>
+          ③ 运行时校验：pydantic 等在数据入口做契约检查<br/>
+          ④ 审查时反复追问"<strong>这个变量到这儿到底是什么类型</strong>"
+        </td>
+      </tr>
+      <tr>
+        <td><b>动态 + 弱</b><br/><span style="color:var(--faint);font-size:12px">JavaScript / PHP</span></td>
+        <td>比上一类更少</td>
+        <td>
+          在上一类的基础上，额外防<strong>隐式转换</strong>：<br/>
+          ① lint 禁用 <code>==</code>、强制 <code>===</code>（eslint 的 <code>eqeqeq</code>）<br/>
+          ② 上 <strong>TypeScript</strong>，把隐式转换入口封死<br/>
+          ③ 显式处理 <code>null</code> / <code>undefined</code> 的语义差别
+        </td>
+      </tr>
+    </tbody>
+  </table></div>
+
+  <div class="box green">
+    <p class="h">◆ 可落地的三条管理结论</p>
+    <p>
+      <b>① 静态类型语言的门禁可以自动化得更彻底。</b>直接把"编译通过 + 测试通过 + 质量门禁"设成合并卡点，
+      编译器就是第一道闸，成本几乎为零。<br/>
+      <b>② 动态/弱类型语言更依赖人工评审与测试。</b>如果团队用 Python / JS，优先推动
+      <strong>mypy / TypeScript 这类渐进式静态检查</strong>——这是行业最佳实践，等于把静态语言的护栏补回来。<br/>
+      <b>③ 审查重点永远要说清楚：</b>静态语言<em>少查"类型对不对"，多查"设计对不对"</em>；
+      动态语言<em>必须多查"类型假设对不对"</em>。
+    </p>
+  </div>
+
+  <h3 id="s4-1"><span class="k">4.1</span>一个务实的补充：渐进式静态化是可选项，不是信仰</h3>
+  <p>
+    给 Python 加类型提示，不代表 Python 变成了静态语言。PEP 484 的态度非常明确：
+  </p>
+  <blockquote>
+    <p class="en">"It should also be emphasized that <b>Python will remain a dynamically typed language, and the authors have no desire to ever make type hints mandatory, even by convention.</b>"</p>
+    <p>需要强调的是：<strong>Python 仍将是一门动态类型语言，作者也绝无意让类型提示成为强制要求，哪怕是约定俗成的强制。</strong></p>
+    <p class="en" style="margin-top:10px">"...<b>no type checking happens at runtime</b>. Instead, the proposal assumes the existence of a separate off-line type checker which users can run over their source code voluntarily."</p>
+    <p>运行时<strong>不做任何类型检查</strong>；这个提案假定存在一个独立的离线类型检查器（如 mypy），用户<strong>自愿</strong>运行它。</p>
+    <p class="src"><span class="tag-off">官方</span> <a href="https://peps.python.org/pep-0484/" target="_blank" rel="noopener">PEP 484 — Type Hints</a></p>
+  </blockquote>
+  <p>
+    这带来一个管理者必须知道的边界：<strong>类型注解是给检查器和 IDE 看的，不是给解释器看的。</strong>
+    所以光写注解没用，必须把 mypy 接进 CI，它才真正成为一道门禁——否则它只是一份可能过期的注释。
+  </p>
+</section>
+
+<!-- ========================= 第五章 ========================= -->
+<section id="ch5">
+  <p class="sec-no">05 / ACTION</p>
+  <h2>落地清单：从"知道"到"装上"</h2>
+  <p class="sub">先做最小的那一步，别一上来搭全套体系</p>
+
+  <h3 id="s5-1"><span class="k">5.1</span>最小可行的门禁集（三条就够）</h3>
+  <p>不管是个人项目还是小团队，先立这三条，它们的投入产出比最高：</p>
+
+  <ol class="check">
+    <li>
+      <strong>受保护分支</strong>：<code>main</code> 禁止直接 push，一切改动走 PR。
+      <br/><span style="color:var(--faint);font-size:13.5px">成本：5 分钟。收益：主干永远有人审过。</span>
+    </li>
+    <li>
+      <strong>编译 + 测试门禁</strong>：PR 触发 CI 跑 <code>assembleDebug</code> 与单元测试，
+      并设为 <code>Require status checks to pass before merging</code>。
+      <br/><span style="color:var(--faint);font-size:13.5px">成本：一个 workflow 文件。收益：挡掉"在我机器上能编"类事故。</span>
+    </li>
+    <li>
+      <strong>新代码质量门禁</strong>：只针对<strong>新增代码</strong>设阈值（覆盖率、严重问题数），
+      <strong>绝不对存量代码设硬门槛</strong>（见 1.5 节的 Sonar 哲学）。
+      <br/><span style="color:var(--faint);font-size:13.5px">成本：一次配置。收益：代码质量只升不降，且不引发"永久红灯"。</span>
+    </li>
+  </ol>
+
+  <div class="box amber">
+    <p class="h">⚑ 顺序很重要</p>
+    <p>
+      先做第 1、2 条并稳定运行两周，再考虑第 3 条。
+      一次性上全套门禁的典型结局是：流水线天天红 → 团队集体忽略 → 三道门一起死。
+    </p>
+  </div>
+
+  <h3 id="s5-2"><span class="k">5.2</span>可直接用的 Android / Kotlin 工作流</h3>
+  <div class="code-h"># .github/workflows/ci.yml —— 存到仓库即可生效</div>
+<pre><span class="k">name</span>: CI
+
+<span class="k">on</span>:
+  <span class="k">pull_request</span>:
+    <span class="k">branches</span>: [ main ]      <span class="c"># 提 PR 到 main 时触发（对应图 2 的扳机）</span>
+  <span class="k">push</span>:
+    <span class="k">branches</span>: [ main ]
+
+<span class="k">jobs</span>:
+  <span class="k">build-and-test</span>:
+    <span class="k">runs-on</span>: ubuntu-latest
+    <span class="k">steps</span>:
+      - <span class="k">uses</span>: actions/checkout@v4
+
+      - <span class="k">name</span>: Set up JDK
+        <span class="k">uses</span>: actions/setup-java@v4
+        <span class="k">with</span>:
+          <span class="k">distribution</span>: temurin
+          <span class="k">java-version</span>: <span class="s">'21'</span>        <span class="c"># Android Gradle Plugin 8.x 需要 JDK 17+</span>
+
+      - <span class="k">name</span>: Grant execute permission for gradlew
+        <span class="k">run</span>: chmod +x ./gradlew
+
+      - <span class="k">name</span>: Build debug APK          <span class="c"># ← 门禁 1：编译必须通过</span>
+        <span class="k">run</span>: ./gradlew assembleDebug
+
+      - <span class="k">name</span>: Run unit tests           <span class="c"># ← 门禁 2：测试必须全绿</span>
+        <span class="k">run</span>: ./gradlew testDebugUnitTest
+
+      - <span class="k">name</span>: Lint                     <span class="c"># ← 门禁 3：静态检查无 error</span>
+        <span class="k">run</span>: ./gradlew lintDebug</pre>
+
+  <div class="box">
+    <p class="h">◆ 配完之后还有一步，别漏</p>
+    <p>
+      到仓库 <strong>Settings → Branches → Add rule</strong>，勾上
+      <code>Require status checks to pass before merging</code>，并选中上面这些 job。
+      <strong>没有这一步，CI 只是个"通知"，不是"门禁"</strong>——红了照样能合并。
+    </p>
+  </div>
+
+  <h3 id="s5-3"><span class="k">5.3</span>把三讲映射回你的 Screensaver 项目</h3>
+  <p>你现在的工作流其实<strong>已经在用门禁思维</strong>，只是没有这么叫它：</p>
+
+  <div class="tw"><table>
+    <thead><tr><th style="width:22%">现有环节</th><th style="width:24%">相当于哪类门禁</th><th>准入标准（建议写成可勾选的清单）</th></tr></thead>
+    <tbody>
+      <tr><td><code>project-manager</code> 输出需求文档</td><td><strong>阶段门</strong>（需求门）</td><td>PRD 完成、范围冻结、验收标准可测</td></tr>
+      <tr><td><code>dev-engineer</code> 交付代码</td><td><strong>质量门禁</strong>（构建门）</td><td>本地编译通过、新增逻辑有单测、无 <code>!!</code> 滥用</td></tr>
+      <tr><td><code>functional-tester</code> 验收</td><td><strong>阶段门</strong>（验收门）</td><td>用例全过、无阻塞缺陷、logcat 关键 TAG 有输出</td></tr>
+      <tr><td>真机验证</td><td><strong>最右端的门禁</strong></td><td>启动只过渡一次、闹钟到点换壁纸、已录规则未丢</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="box purple">
+    <p class="h">◆ 下一步最值得做的一件事</p>
+    <p>
+      给你的 <code>ScheduleEngine</code> 补一组纯函数单测（覆盖 <code>start ≤ now &lt; end</code> 与 24:00 边界），
+      然后按 5.2 把它接进 CI。它同时命中两讲：<strong>类型系统</strong>让这些测试容易写（纯函数、无副作用），
+      <strong>CI</strong> 让它们每次合并自动跑。这是投入最小、收益最实的一步。
+    </p>
+  </div>
+</section>
+
+<!-- ========================= 附录 ========================= -->
+<section id="app">
+  <p class="sec-no">06 / APPENDIX</p>
+  <h2>附录</h2>
+
+  <h3 id="app-a"><span class="k">A</span>引用出处一览</h3>
+  <dl class="kv">
+    <dt>A-1</dt><dd><span class="tag-off">官方</span> Martin Fowler，<a href="https://martinfowler.com/articles/continuousIntegration.html" target="_blank" rel="noopener">Continuous Integration</a>（2001 首写 / 2023 重写）—— CI 定义</dd>
+    <dt>A-2</dt><dd><span class="tag-off">官方</span> Martin Fowler，<a href="https://martinfowler.com/bliki/ContinuousDelivery.html" target="_blank" rel="noopener">bliki — Continuous Delivery</a> —— 持续交付四判据</dd>
+    <dt>A-3</dt><dd><span class="tag-off tag-com">社区</span> PDMA 对 Stage-Gate 的定义；Cooper 1986 / 1988 的时间线整理（见 MBA 智库百科「门径管理系统」等中文转述）</dd>
+    <dt>A-4</dt><dd><span class="tag-off tag-com">社区</span> NASA NHB 7121.2（1972）与 DoD 分阶段采购评审——阶段门的更早渊源</dd>
+    <dt>A-5</dt><dd><span class="tag-off">官方</span> <a href="https://docs.sonarqube.org/latest/user-guide/quality-gates" target="_blank" rel="noopener">SonarQube Docs — Understanding quality gates</a> —— 质量门禁定义、条件三元组、Sonar way 四条、阻断 PR 合并</dd>
+    <dt>A-6</dt><dd><span class="tag-off">官方</span> <a href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/managing-a-branch-protection-rule" target="_blank" rel="noopener">GitHub Docs — Managing a branch protection rule</a> —— 分支保护与 required status checks</dd>
+    <dt>A-7</dt><dd><span class="tag-off">官方</span> <a href="https://docs.gitlab.com/ee/ci/" target="_blank" rel="noopener">GitLab Docs — Get started with GitLab CI/CD</a> —— CI/CD 定义、Pipeline / Stage / Job / Runner</dd>
+    <dt>A-8</dt><dd><span class="tag-off">官方</span> <a href="https://kotlinlang.org/spec" target="_blank" rel="noopener">Kotlin language specification</a> —— "statically typed"、编译期区分可空/非空</dd>
+    <dt>A-9</dt><dd><span class="tag-off">官方</span> <a href="https://kotlinlang.org/docs/basic-syntax.html" target="_blank" rel="noopener">Kotlin Documentation — Basic syntax</a> —— type inference 与"何时必须手写类型"</dd>
+    <dt>A-10</dt><dd><span class="tag-off">官方</span> <a href="https://cr.openjdk.org/~briangoetz/jep-286/lvti-faq.html" target="_blank" rel="noopener">JEP 286 FAQ（Brian Goetz / OpenJDK）</a> —— "Is this dynamic typing? No!"</dd>
+    <dt>A-11</dt><dd><span class="tag-off">官方</span> <a href="https://docs.python.org/3/faq/design.html" target="_blank" rel="noopener">Python 3 — Design and History FAQ</a> —— "Python uses dynamic types"；<strong>注意：官方全文未出现 "strongly typed"</strong></dd>
+    <dt>A-12</dt><dd><span class="tag-off">官方</span> <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Data_structures" target="_blank" rel="noopener">MDN — JavaScript data types and data structures</a> —— "dynamic types" 与 "weakly typed"</dd>
+    <dt>A-13</dt><dd><span class="tag-off">官方</span> <a href="https://peps.python.org/pep-0484/" target="_blank" rel="noopener">PEP 484 — Type Hints</a> —— "Python will remain a dynamically typed language"、"no type checking happens at runtime"</dd>
+    <dt>A-14</dt><dd><span class="tag-off tag-com">社区</span> Benjamin C. Pierce 关于"强类型/静态类型/安全"术语混乱的著名论述（中译见科普中国 / 百度百科「强弱类型」词条）；Virginia Tech 开放教材 <a href="https://opendsa.cs.vt.edu/" target="_blank" rel="noopener">OpenDSA</a> 建议避免使用 strong/weak typing 的说法</dd>
+    <dt>A-15</dt><dd><span class="tag-off tag-com">社区</span> Larry Smith，<em>Dr. Dobb's Journal</em>（2001）—— "shift-left testing" 术语出处</dd>
+  </dl>
+
+  <hr class="soft"/>
+
+  <h3 id="app-b"><span class="k">B</span>自检十二问（答不上来就回看对应小节）</h3>
+  <ol>
+    <li>阶段门（Stage-Gate）与质量门禁（Quality Gate）在<strong>触发时机</strong>和<strong>检查方式</strong>上有哪两点根本不同？（1.1）</li>
+    <li>一道合格的阶段门必须包含哪三样东西？（1.4）</li>
+    <li>判断一个组织的门是不是"真门"，最直接的证据是什么？（1.4 提示框）</li>
+    <li>SonarQube 的一条门禁条件由哪三个元素构成？（1.5）</li>
+    <li>为什么 Sonar 官方建议门禁只针对<strong>新代码</strong>？给存量代码设硬门槛会发生什么？（1.5）</li>
+    <li>配好了 CI 流水线，为什么还要单独去勾选 <code>Require status checks to pass</code>？（1.6 / 5.2）</li>
+    <li>"我们装了 Jenkins" 算不算在做 CI？Fowler 的两条判据是什么？（2.2）</li>
+    <li>持续交付与持续部署，一句话区别是什么？（2.3）</li>
+    <li>Pipeline、Stage、Job、Runner 四个词分别指什么？（2.4）</li>
+    <li>Python 里 <code>x = 1</code> 后 <code>x = "a"</code> 合法，Kotlin 里 <code>val x = 1</code> 后 <code>x = "a"</code> 报错——用<strong>静态/动态</strong>解释原因。（3.3 / 3.7）</li>
+    <li>为什么"强类型 / 弱类型"不适合写进技术方案？换成哪三个问题更好？（3.4）</li>
+    <li>Python 加了类型注解，运行时会不会检查类型？要让它真正成为门禁，还必须做什么？（4.1）</li>
+  </ol>
+
+  <hr class="soft"/>
+
+  <h3 id="app-c"><span class="k">C</span>术语速查</h3>
+  <div class="tw"><table>
+    <thead><tr><th style="width:26%">中文</th><th style="width:30%">英文</th><th>一句话</th></tr></thead>
+    <tbody>
+      <tr><td>门禁 / 质量门禁</td><td>Quality Gate</td><td>一组指标阈值，不达标即失败并阻断合并或发布</td></tr>
+      <tr><td>阶段门</td><td>Stage-Gate</td><td>项目阶段之间的管理决策点，可输出 Go / Kill / Hold / Recycle</td></tr>
+      <tr><td>合并门禁</td><td>Merge Gate / Branch Protection</td><td>平台层拦截：审批数、状态检查、Code Owner</td></tr>
+      <tr><td>持续集成</td><td>Continuous Integration (CI)</td><td>至少每天合并主干 + 每次自动构建测试</td></tr>
+      <tr><td>持续交付</td><td>Continuous Delivery</td><td>产物随时可发布，但发布仍需人点按钮</td></tr>
+      <tr><td>持续部署</td><td>Continuous Deployment</td><td>过门禁后全自动发布，无需人工确认</td></tr>
+      <tr><td>流水线 / 阶段 / 作业</td><td>Pipeline / Stage / Job</td><td>一次执行 / 执行顺序 / 具体任务</td></tr>
+      <tr><td>左移</td><td>Shift-Left</td><td>把测试与质量活动挪到开发流程更早的位置（Larry Smith, 2001）</td></tr>
+      <tr><td>静态类型</td><td>Static Typing</td><td>类型在编译期确定并固定，绑在变量上</td></tr>
+      <tr><td>动态类型</td><td>Dynamic Typing</td><td>类型在运行期确定，绑在值上，变量可随时换类型</td></tr>
+      <tr><td>类型推断</td><td>Type Inference</td><td>编译器替你算出类型；<strong>不改变静态类型的本质</strong></td></tr>
+      <tr><td>空安全</td><td>Null Safety</td><td>把"可空与否"写进类型，在编译期杜绝 NPE（Kotlin）</td></tr>
+      <tr><td>渐进式类型</td><td>Gradual Typing</td><td>动态语言上可选的静态检查（PEP 484 的 <code>Any</code> 即取自此思想）</td></tr>
+      <tr><td>平台类型</td><td>Platform Type</td><td>Kotlin 调 Java 时可空性未知的类型，需人工判断，是静态语言里最易漏的口子</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<footer>
+  <p>
+    <strong>工程素养三讲 · 门禁 / CI-CD / 类型系统</strong>　·　整理于 2026-08-29<br/>
+    内容基于 WorkBuddy 对话实录，每条关键论断均已回溯至官方或权威一手文档（见附录 A）。
+    「强类型 / 弱类型」相关归类为社区通行理解，文中已明确标注其非官方性质。
+  </p>
+  <p style="margin-top:10px">
+    建议的下一步：为 <code>ScheduleEngine</code> 补纯函数单测 → 按 5.2 接入 CI → 勾选 required status checks。
+  </p>
+</footer>
+
+</main>
+</div>
+
+<script>
+  // 主题切换（记忆到 localStorage）
+  (function(){
+    var root = document.documentElement, btn = document.getElementById('tt');
+    var saved = null;
+    try { saved = localStorage.getItem('el3-theme'); } catch(e) {}
+    if (saved) { root.setAttribute('data-theme', saved); }
+    btn.addEventListener('click', function(){
+      var cur = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      root.setAttribute('data-theme', cur);
+      try { localStorage.setItem('el3-theme', cur); } catch(e) {}
+    });
+  })();
+
+  // 阅读进度条
+  (function(){
+    var bar = document.getElementById('prog');
+    function upd(){
+      var h = document.documentElement;
+      var max = h.scrollHeight - h.clientHeight;
+      var p = max > 0 ? (h.scrollTop || document.body.scrollTop) / max * 100 : 0;
+      bar.style.width = p + '%';
+    }
+    window.addEventListener('scroll', upd, {passive:true});
+    window.addEventListener('resize', upd);
+    upd();
+  })();
+</script>
+</body>
+</html>

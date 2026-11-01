@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Android 12+（API 31+）：系统 SplashScreen。
+         无需 core-splashscreen 依赖即可原生生效：
+         - windowSplashScreenBackground：品牌色（#3A5BDB）
+         - windowSplashScreenAnimatedIcon：角色头像
+         低版本（API 24-30）自动回退到基础主题的 android:windowBackground 品牌色过渡。 -->
+    <style name="Theme.Screensaver" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">@color/brand_primary</item>
+
+        <item name="android:windowSplashScreenBackground">@color/brand_primary</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+
+        <item name="android:windowSplashScreenIconBackgroundColor" tools:targetApi="s">@android:color/transparent</item>
+    </style>
+</resources>

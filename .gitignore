@@ -1,0 +1,35 @@
+# 1. 密钥 / 本机凭据（最高优先级，绝不能进版本库）
+# .env 内含 Gitee 个人访问令牌（GITEE_TOKEN），一旦提交并推送即等于密钥泄露
+.env
+.env.*
+!.env.example
+
+# 2. 构建产物与缓存（均可从源码重建）
+/app/build/
+build/
+/.gradle/
+/.kotlin/
+captures/
+outputs/
+*.apk
+*.aab
+
+# 3. 本机环境（每人路径不同）
+# Android Studio 自动生成，含 sdk.dir 绝对路径；
+# 该文件头部自带声明：must NOT be checked into Version Control Systems
+local.properties
+
+# 4. IDE 与工作区私有数据
+.idea/
+*.iml
+.workbuddy/
+
+# 5. 素材源（非源码，不进版本库）
+image/
+
+# 6. 系统杂项
+.DS_Store
+Thumbs.db
+
+# 7. 本地 Agent 技能与工作流配置
+.skill/

@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git 分支策略与合并异常处理 · 写给只会 push / pull 的你</title>
+<style>
+  :root{
+    --ink:#2b2a27; --muted:#6b6a66; --paper:#faf9f6; --card:#ffffff;
+    --blue:#185FA5; --blue-soft:#E6F1FB; --red:#A32D2D; --red-soft:#FCEBEB;
+    --green:#3B6D11; --green-soft:#EAF3DE; --amber:#854F0B; --amber-soft:#FAEEDA;
+    --line:#e3e1db;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    line-height:1.75;font-size:15.5px;}
+  main{max-width:860px;margin:0 auto;padding:32px 22px 80px;}
+  h1{font-size:26px;line-height:1.4;margin:8px 0 4px;}
+  h2{font-size:20px;margin:52px 0 14px;padding-bottom:8px;border-bottom:2px solid var(--line);}
+  h2 .no{color:var(--blue);margin-right:8px;font-weight:600;}
+  h3{font-size:16.5px;margin:30px 0 10px;}
+  .subtitle{color:var(--muted);margin:0 0 18px;font-size:14px;}
+  .lead{background:var(--blue-soft);border-radius:12px;padding:16px 20px;margin:20px 0;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:16px 0;}
+  .warn{background:var(--red-soft);border-left:4px solid var(--red);border-radius:8px;padding:12px 16px;margin:16px 0;}
+  .tip{background:var(--green-soft);border-left:4px solid var(--green);border-radius:8px;padding:12px 16px;margin:16px 0;}
+  .note{background:var(--amber-soft);border-left:4px solid var(--amber);border-radius:8px;padding:12px 16px;margin:16px 0;}
+  blockquote{margin:12px 0;padding:10px 16px;border-left:3px solid var(--blue);background:#f4f7fb;
+    color:#3a4a5c;font-size:14px;border-radius:0 8px 8px 0;}
+  blockquote .src{display:block;margin-top:6px;color:var(--muted);font-size:12px;}
+  code{background:#efece6;border-radius:4px;padding:1px 6px;font-size:13.5px;
+    font-family:Consolas,"JetBrains Mono",monospace;}
+  pre{background:#2b2a27;color:#e8e6df;border-radius:10px;padding:14px 18px;overflow-x:auto;
+    font-size:13px;line-height:1.6;font-family:Consolas,"JetBrains Mono",monospace;}
+  pre code{background:none;padding:0;color:inherit;}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px;background:var(--card);}
+  th{background:#f0eee8;text-align:left;}
+  th,td{border:1px solid var(--line);padding:8px 12px;vertical-align:top;}
+  .kicker{display:inline-block;font-size:12px;letter-spacing:2px;color:var(--blue);
+    border:1px solid var(--blue);border-radius:99px;padding:2px 12px;margin-bottom:10px;}
+  figure{margin:20px 0;text-align:center;}
+  figcaption{color:var(--muted);font-size:13px;margin-top:6px;}
+  svg{max-width:100%;height:auto;background:#fff;border:1px solid var(--line);border-radius:10px;}
+  .case{border:1px dashed var(--blue);border-radius:10px;padding:12px 16px;margin:14px 0;background:#fbfdff;}
+  .case .tag{font-weight:600;color:var(--blue);font-size:13px;}
+  footer{max-width:860px;margin:0 auto;padding:20px 22px 40px;color:#b6b3ac;font-size:11.5px;text-align:center;}
+  .toc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 22px;margin:22px 0;}
+  .toc ol{margin:6px 0;padding-left:22px;}
+  .toc a{color:var(--blue);text-decoration:none;}
+  .pill{display:inline-block;border-radius:99px;padding:1px 10px;font-size:12px;font-weight:600;margin-right:6px;}
+  .pill.red{background:var(--red-soft);color:var(--red);}
+  .pill.green{background:var(--green-soft);color:var(--green);}
+  .pill.blue{background:var(--blue-soft);color:var(--blue);}
+</style>
+</head>
+<body>
+<main>
+
+<span class="kicker">LEARNING FOR HUMAN</span>
+<h1>Git 分支策略与合并异常处理</h1>
+<p class="subtitle">写给只会 push / pull 的你 —— 全部案例来自一次真实的"同事同 bug 双方案撞车"协作</p>
+
+<div class="lead">
+  你已经会用 <code>git add / commit / push / pull</code> 了，这很好——但协作真正开始时（哪怕只有两个人、一个远程仓库），
+  你会立刻遇到三个问题：<b>分支怎么摆</b>、<b>合并时撞车怎么办</b>、<b>出错之后怎么找回</b>。
+  本文用一次真实发生的"我和同事修了同一个 bug"的完整决策过程做母本，把这三件事讲透。
+</div>
+
+<div class="toc">
+  <b>目录</b>
+  <ol>
+    <li><a href="#c1">重新理解分支：三个指针，不是一个文件夹</a></li>
+    <li><a href="#c2">分支策略：按团队形态选车道模型</a></li>
+    <li><a href="#c3">合并的真实机制：三方合并，行块级取并集</a></li>
+    <li><a href="#c4">合并异常处理机制（六个异常 + 红线清单）</a></li>
+    <li><a href="#c5">实战复盘：同 bug 双方案撞车全流程</a></li>
+    <li><a href="#c6">命令速查卡</a></li>
+  </ol>
+</div>
+
+<!-- ================= 第 1 章 ================= -->
+<h2 id="c1"><span class="no">①</span>重新理解分支：三个指针，不是一个文件夹</h2>
+
+<p>只会 push/pull 的人通常有个隐藏误解：<b>"建分支 = 把代码复制一份"</b>。错。
+分支、tag、HEAD 本质上都是<b>指针</b>——一张 41 字节的便签，内容是"某个提交的编号"。理解了这一点，后面所有概念都会变简单：</p>
+
+<table>
+  <tr><th>指针</th><th>比喻</th><th>会不会移动</th><th>用途</th></tr>
+  <tr><td><b>分支</b> (branch)</td><td>夹在"最新读到那页"的书签</td><td>会——你在它上面提交，它自动跟着走</td><td>标记一条开发线的最新位置</td></tr>
+  <tr><td><b>tag</b></td><td>盖在某页上的钢印</td><td>永不移动</td><td>钉死一个里程碑（"这个状态发过版"）</td></tr>
+  <tr><td><b>HEAD</b></td><td>"你此刻翻到哪页"的书签</td><td>随 checkout / commit 移动</td><td>记录当前所在位置</td></tr>
+</table>
+
+<figure>
+<svg viewBox="0 0 680 190" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>指针模型</title>
+  <defs><marker id="ar1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5"/></marker></defs>
+  <line x1="120" y1="110" x2="238" y2="110" stroke="#88867f" stroke-width="1.5" fill="none" marker-end="url(#ar1)"/>
+  <line x1="262" y1="110" x2="358" y2="110" stroke="#88867f" stroke-width="1.5" fill="none" marker-end="url(#ar1)"/>
+  <circle cx="120" cy="110" r="11" fill="#5F5E5A" stroke="#B4B2A9" stroke-width="0.5"/>
+  <circle cx="250" cy="110" r="11" fill="#185FA5" stroke="#85B7EB" stroke-width="0.5"/>
+  <circle cx="370" cy="110" r="11" fill="#185FA5" stroke="#85B7EB" stroke-width="0.5"/>
+  <text x="120" y="140" text-anchor="middle" font-size="12" fill="#6b6a66">提交 A</text>
+  <text x="250" y="140" text-anchor="middle" font-size="12" fill="#185FA5">提交 B（里程碑）</text>
+  <text x="370" y="140" text-anchor="middle" font-size="12" fill="#185FA5">提交 C（最新）</text>
+  <rect x="222" y="52" width="56" height="24" rx="6" fill="#27500A"/>
+  <text x="250" y="64" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#EAF3DE">tag</text>
+  <line x1="250" y1="76" x2="250" y2="97" stroke="#3B6D11" stroke-width="1.5" fill="none" marker-end="url(#ar1)"/>
+  <rect x="342" y="98" width="0" height="0"/>
+  <rect x="332" y="52" width="76" height="24" rx="6" fill="#185FA5"/>
+  <text x="370" y="64" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#E6F1FB">main</text>
+  <line x1="370" y1="76" x2="370" y2="97" stroke="#185FA5" stroke-width="1.5" fill="none" marker-end="url(#ar1)"/>
+  <text x="40" y="64" font-size="12" fill="#6b6a66">tag 盖死在 B；</text>
+  <text x="40" y="82" font-size="12" fill="#6b6a66">main 每次提交后前移</text>
+</svg>
+<figcaption>图 1 · tag 是钢印（钉死 B），分支是会走的书签（随提交前移到 C）</figcaption>
+</figure>
+
+<div class="case">
+  <span class="tag">实战 · 打里程碑 tag</span><br>
+  本案例中，功能开发完、双真机验证通过后，我们用附注 tag 钉住这个状态：
+<pre><code>git tag -a v1.1.0 -m "本应用的基本功能已实现，两款真机测试可以正常运行"
+git push origin v1.1.0      # ⚠️ tag 不随普通 push 走，必须显式推</code></pre>
+  三重自证它确实钉对了位置：<code>git log --decorate</code> 看 tag 是否和 HEAD 同提交、
+  <code>git describe --tags</code> 输出干净的 <code>v1.1.0</code>（无 <code>-1-gxxxx</code> 偏差后缀）、
+  <code>git rev-parse main</code> 与 <code>git rev-parse v1.1.0^{commit}</code> 哈希相同。
+</div>
+
+<div class="tip">
+  <b>为什么 tag 是新手的救命绳：</b>提交保证代码"丢不了"，但合并之后"我验证过的那个状态"就不再是任何分支的尖端了——
+  没有名字，只能去 reflog 里挖。tag 给它一个永久名字：任何时候 <code>git diff v1.1.0</code> 看变化、
+  <code>git reset --hard v1.1.0</code> 一键回去。
+</div>
+
+<!-- ================= 第 2 章 ================= -->
+<h2 id="c2"><span class="no">②</span>分支策略：按团队形态选车道模型</h2>
+
+<p>策略没有高低，只有匹配。三个真实模型，按协作复杂度递增：</p>
+
+<h3>模型 A · 单主干（main only）—— 1~2 人，串行开发</h3>
+<div class="card">
+  所有人直接在 main 上提交、推送。分支只有一条，心智成本为零。
+  <b>前提纪律</b>：① 提交说明必须可复盘（类型+目的+范围，拒绝"修复若干BUG"）；
+  ② 配合<b>里程碑 tag</b> 使用——每个"验证过的完整状态"钉一枚，这是单人模型唯一的后悔药。
+</div>
+
+<h3>模型 B · 单主干 + 里程碑 tag —— 双人小队（本案例采用的增强版）</h3>
+<div class="card">
+  还是只合作战，但每个"编译+测试+真机全通过"的阶段性状态打一枚 tag。
+  合并同事代码、做大改动之前，tag 就是书签和后悔药：<b>先钉后动</b>。
+</div>
+
+<h3>模型 C · 短命特性分支 —— 3 人以上 / 多任务并行</h3>
+<div class="card">
+  每个任务开 <code>feature/主题</code> 分支，完成后合回 main 并删除分支。
+  适合"多人同时改、互不想踩"的场景。代价：分支管理成本 + 合并频率上升。
+  两人小队早期上这套属于过度设计。
+</div>
+
+<table>
+  <tr><th>你的处境</th><th>推荐模型</th><th>关键纪律</th></tr>
+  <tr><td>1 人，自用项目</td><td>A：单主干</td><td>提交说明可复盘</td></tr>
+  <tr><td>2 人，偶有并行</td><td>B：单主干 + 里程碑 tag</td><td>大动作前先钉 tag；合并前先 fetch 看牌</td></tr>
+  <tr><td>3 人+ / 多任务并行</td><td>C：短命特性分支</td><td>分支完成即合并删除，防堆积</td></tr>
+</table>
+
+<div class="warn">
+  <b>任何模型通用的红线：</b>未提交 = 不设防。本案例中两次"文件消失"事故，损失的都是在工作区裸奔、
+  从未 <code>commit</code> 的文档——<b>结论性文档写完 30 秒内就 add + commit</b>，这是 1 换 100 的习惯。
+</div>
+
+<!-- ================= 第 3 章 ================= -->
+<h2 id="c3"><span class="no">③</span>合并的真实机制：三方合并，行块级取并集</h2>
+
+<p>很多人以为"合并 = 两边文件不一样的都要人裁决"。错。Git 的合并是<b>三方对比</b>：
+它先找到两条线的<b>共同祖先</b>，然后问三个问题——<b>祖先→你 改了什么？祖先→他 改了什么？</b>
+再按<b>行块（hunk）</b>级别逐块处理：</p>
+
+<figure>
+<svg viewBox="0 0 680 250" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>三方合并行块示意</title>
+  <rect x="40" y="40" width="180" height="170" rx="8" fill="#f0eee8" stroke="#e3e1db"/>
+  <text x="130" y="64" text-anchor="middle" font-size="13" font-weight="600" fill="#6b6a66">共同祖先 base</text>
+  <text x="60" y="95" font-size="12" fill="#444441" font-family="monospace">1 line A</text>
+  <text x="60" y="118" font-size="12" fill="#444441" font-family="monospace">2 line B</text>
+  <text x="60" y="141" font-size="12" fill="#444441" font-family="monospace">3 line C</text>
+  <text x="60" y="164" font-size="12" fill="#444441" font-family="monospace">4 line D</text>
+  <text x="60" y="187" font-size="12" fill="#444441" font-family="monospace">5 line E</text>
+  <rect x="250" y="40" width="180" height="170" rx="8" fill="#EAF3DE" stroke="#97C459"/>
+  <text x="340" y="64" text-anchor="middle" font-size="13" font-weight="600" fill="#3B6D11">你的版本</text>
+  <text x="270" y="95" font-size="12" fill="#444441" font-family="monospace">1 line A</text>
+  <text x="270" y="118" font-size="12" fill="#3B6D11" font-family="monospace">2 B-fix ←改</text>
+  <text x="270" y="141" font-size="12" fill="#444441" font-family="monospace">3 line C</text>
+  <text x="270" y="164" font-size="12" fill="#444441" font-family="monospace">4 line D</text>
+  <text x="270" y="187" font-size="12" fill="#444441" font-family="monospace">5 line E</text>
+  <rect x="460" y="40" width="180" height="170" rx="8" fill="#FAEEDA" stroke="#EF9F27"/>
+  <text x="550" y="64" text-anchor="middle" font-size="13" font-weight="600" fill="#854F0B">同事的版本</text>
+  <text x="480" y="95" font-size="12" fill="#444441" font-family="monospace">1 line A</text>
+  <text x="480" y="118" font-size="12" fill="#444441" font-family="monospace">2 line B</text>
+  <text x="480" y="141" font-size="12" fill="#854F0B" font-family="monospace">3 C-new ←改</text>
+  <text x="480" y="164" font-size="12" fill="#444441" font-family="monospace">4 line D</text>
+  <text x="480" y="187" font-size="12" fill="#854F0B" font-family="monospace">5 E-new ←改</text>
+  <rect x="250" y="222" width="390" height="24" rx="8" fill="#EAF3DE"/>
+  <text x="445" y="238" text-anchor="middle" font-size="12" fill="#3B6D11">自动合并结果：2 B-fix ＋ 3 C-new ＋ 5 E-new —— 两边改动全保留，零冲突</text>
+</svg>
+<figcaption>图 2 · 你改第 2 行，他改第 3、5 行 → 不同行块，Git 自动融合，两边改动共存</figcaption>
+</figure>
+
+<blockquote>
+  "Among the changes made to the common ancestor's version, <b>non-overlapping ones are incorporated
+  in the final result verbatim</b>. When both sides made changes to the same area, however,
+  Git cannot randomly pick one side over the other, and asks you to resolve it."
+  <span class="src">—— git-scm.com/docs/git-merge · HOW CONFLICTS ARE PRESENTED</span>
+</blockquote>
+
+<p>所以正确的理解是三句话：</p>
+<ol>
+  <li><b>单边改动直接采用</b>——包括新增文件、修改、<b>甚至删除</b>（一边删了、另一边没动过，结果就是没了，这不是并集）</li>
+  <li><b>双边改动按行块取并集</b>——改了同一个文件的不同区域，自动融合，无感完成</li>
+  <li><b>只有同一行区域两边都改</b>——才标 <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> 冲突标记，停下交给人</li>
+</ol>
+
+<div class="warn">
+  <b>最重要的警告：没冲突 ≠ 结果正确。</b><br>
+  真实案例：我和同事都给 <code>HomeViewModel</code> 加了 <code>batteryWhitelisted</code> 状态。
+  如果他加在文件头部、我加在尾部——<b>不同行块，Git 会把两段都融进去，一个类里出现两套同名状态</b>。
+  运气差直接编译报错（还算幸运）；运气好名字错开 → 编译通过但逻辑打架。
+  这就是"编译过了但逻辑错了"的根源：<b>自动合并保证的是文本融合成功，不保证语义正确</b>。
+  两边改过同一批文件时，即使零冲突也要人工过一遍。
+</div>
+
+<!-- ================= 第 4 章 ================= -->
+<h2 id="c4"><span class="no">④</span>合并异常处理机制：六个异常 + 红线清单</h2>
+
+<h3>异常 ① push 被拒：non-fast-forward（最高发）</h3>
+<div class="card">
+  <b>症状</b>：<code>git push</code> 被拒，提示 non-fast-forward。<br>
+  <b>原因</b>：远程分支上站着<b>你本地没有的提交</b>（你和同事从同一点分头走了）。此时接受你的推送 = 把远程已有的提交抹掉，官方原话：
+  <blockquote>
+    "The command by default does not allow an update that is not a fast-forward
+    <b>to prevent such loss of history</b>."
+    <span class="src">—— git-scm.com/docs/git-push · NOTE ABOUT FAST-FORWARDS</span>
+  </blockquote>
+  <b>它是保护，不是故障。</b>三条出路：
+</div>
+<table>
+  <tr><th>出路</th><th>效果</th><th>适用</th></tr>
+  <tr><td><b>merge 接回两条线</b></td><td>合并提交把双方历史正式连起来，远程快进</td><td>✅ 共享分支的默认正解</td></tr>
+  <tr><td>rebase 重排自己的提交</td><td>把你的提交搬到对方线上</td><td>⚠️ 未推送过的私人提交可用</td></tr>
+  <tr><td><code>--force</code> 强推</td><td>无视检查，覆盖远程</td><td>❌ 见下方红线</td></tr>
+</table>
+<div class="warn">
+  <b>红线：共享分支禁止 force push。</b>官方文档的原文就叫这个性质——
+  <blockquote>
+    "blindly pushing with <b>--force will lose their work</b>"（盲目强推会丢掉别人的工作）
+    / "It can cause the remote repository to lose commits; use it with care."
+    <span class="src">—— git-scm.com/docs/git-push</span>
+  </blockquote>
+  force push 后，同事的提交从共享分支上"蒸发"，他本地仓库与远程彻底打架，且极难追溯。
+</div>
+
+<h3>异常 ② 冲突现场：不是"挑一个"，是核对双方意图</h3>
+<div class="card">
+  冲突标记 <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; 你的版本 ======= 他的版本 &gt;&gt;&gt;&gt;&gt;&gt;&gt;</code> 出现时，对每个冲突问三个问题：
+  <b>①这个冲突为什么产生？②两边各想做什么？③合并后的行为符合预期吗？</b>
+  两边真的一个字不差 → 取谁都一样；思路同细节不同 → 逐块裁决，必要时找对方对齐口径。
+  裁决完 <code>git add</code> + <code>git commit</code> 完成合并。
+  <b>禁止无脑选 ours / theirs</b>——那等于把裁决丢给硬币。
+</div>
+
+<h3>异常 ③ 合并到一半反悔</h3>
+<pre><code>git merge --abort        # 回到合并开始前的状态</code></pre>
+<blockquote>
+  官方警告："Running git merge with non-trivial uncommitted changes is discouraged."
+  —— 合并前有未提交改动时，--abort 可能<b>无法完全恢复</b>。所以铁律是：<b>先提交，再合并</b>。
+  <span class="src">—— git-scm.com/docs/git-merge · OPTIONS --abort</span>
+</blockquote>
+
+<h3>异常 ④ 合并完成但整体否定</h3>
+<pre><code>git reset --hard ORIG_HEAD    # ORIG_HEAD = 合并前 main 的位置，Git 自动记录
+git reset --hard v1.1.0       # 或回到你钉过的里程碑 tag</code></pre>
+<p>破坏性命令，但正因为合并前钉过 tag / 打过书签，才敢用。</p>
+
+<h3>异常 ⑤ 未跟踪文件挡道（Untracked Files Preventing Checkout）</h3>
+<div class="case">
+  <span class="tag">真实案例</span><br>
+  切分支时被拒："untracked files will be overwritten by checkout: gradlew, gradle/wrapper/…"。<br>
+  <b>机理</b>：目标分支对这几个路径有<b>正式版本</b>要写入工作区，而工作区同路径占着<b>不在任何提交里的</b>未跟踪文件——
+  覆盖即真丢失，Git 拒绝静默覆盖。<b>修复</b>：确认未跟踪副本是垃圾（或已留档）后删掉，切回时正式版本自动回来。<br>
+  <b>本案例的额外教训</b>：那份"再生"的 <code>gradle-wrapper.properties</code> 指向 Gradle 9.3.0，而项目要 8.9——
+  工具自动再生的文件 ≠ 正主版本，删之前先看一眼内容。
+</div>
+
+<h3>异常 ⑥ 终极兜底：reflog</h3>
+<div class="tip">
+  只要<b>提交过</b>，对象就永久在库里——分支指针丢了、合并搞砸了、分支删了，都能从
+  <code>git reflog</code> 按时间线找回，<code>git reset --hard &lt;hash&gt;</code> 复位。
+  反过来推论：<b>没提交过的东西（未跟踪文件）没有任何保险</b>——连 reflog 都救不了它。
+</div>
+
+<h3 id="sours">特殊武器：<code>-s ours</code> 策略合并 —— 内容独走，历史接回</h3>
+<div class="card">
+  场景：同事的方案被评审否决，但他的提交已在远程 main 上，你的推送被 non-fast-forward 拒绝。
+  你想要"远程最终内容 100% 是我的"，又不肯 force push。答案：
+<pre><code>git merge -s ours colleague-fix   # 合并提交把对方接入祖先，内容树 100% 取当前分支</code></pre>
+  <blockquote>
+    "the resulting tree of the merge is <b>always that of the current branch head</b>,
+    effectively ignoring all changes from all other branches. It is meant to
+    <b>supersede old development history of side branches</b>."
+    <span class="src">—— git-scm.com/docs/git-merge · MERGE STRATEGIES（注意：与 <code>-X ours</code> 选项完全不同）</span>
+  </blockquote>
+  效果：内容上 main 独自前进（对方代码零进入），拓扑上两条线正式握手（对方提交成为祖先，push 畅通），
+  对方的工作在历史里可查可取回（<code>git show &lt;commit&gt;:&lt;路径&gt;</code>）。
+  <b>合并说明必须写明裁决依据</b>——这是"方案裁决"与"悄悄覆盖"的分界线。
+</div>
+
+<!-- ================= 第 5 章 ================= -->
+<h2 id="c5"><span class="no">⑤</span>实战复盘：同 bug 双方案撞车全流程</h2>
+
+<p>完整背景：远程 main 上有同事的 bug 修复提交；我在本地独立做了同 bug 的另一版修复，且已双真机验证。决策全流程：</p>
+
+<figure>
+<svg viewBox="0 0 680 430" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>撞车处理决策流程</title>
+  <defs><marker id="ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5"/></marker></defs>
+  <g font-size="13">
+    <rect x="190" y="24" width="300" height="40" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+    <text x="340" y="48" text-anchor="middle" dominant-baseline="central" fill="#0C447C">① git fetch 看牌（只下载不动工作区）</text>
+    <rect x="190" y="86" width="300" height="40" rx="8" fill="#fff" stroke="#88867f" stroke-width="0.5"/>
+    <text x="340" y="110" text-anchor="middle" dominant-baseline="central" fill="#444441">② 审阅：log / show / diff --stat 预判撞车面</text>
+    <rect x="190" y="148" width="300" height="40" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="0.5"/>
+    <text x="340" y="172" text-anchor="middle" dominant-baseline="central" fill="#A32D2D">③ 同一 bug 两边都改 → 冲突必然发生</text>
+    <rect x="190" y="210" width="300" height="40" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="0.5"/>
+    <text x="340" y="234" text-anchor="middle" dominant-baseline="central" fill="#3B6D11">④ 评审两版方案 → 裁决：以我方为主体</text>
+    <rect x="190" y="272" width="300" height="40" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="0.5"/>
+    <text x="340" y="296" text-anchor="middle" dominant-baseline="central" fill="#3B6D11">⑤ git merge -s ours（内容取我，历史接回）</text>
+    <rect x="190" y="334" width="300" height="40" rx="8" fill="#fff" stroke="#88867f" stroke-width="0.5"/>
+    <text x="340" y="358" text-anchor="middle" dominant-baseline="central" fill="#444441">⑥ git diff v1.1.0 为空 → 树与已验证状态一致</text>
+    <rect x="190" y="392" width="300" height="34" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+    <text x="340" y="413" text-anchor="middle" dominant-baseline="central" fill="#854F0B">⑦ push ＋ 带证据与同事沟通（他的提交在历史里可取回）</text>
+    <line x1="340" y1="64" x2="340" y2="84" stroke="#88867f" stroke-width="1.5" fill="none" marker-end="url(#ar2)"/>
+    <line x1="340" y1="126" x2="340" y2="146" stroke="#88867f" stroke-width="1.5" fill="none" marker-end="url(#ar2)"/>
+    <line x1="340" y1="188" x2="340" y2="208" stroke="#88867f" stroke-width="1.5" fill="none" marker-end="url(#ar2)"/>
+    <line x1="340" y1="250" x2="340" y2="270" stroke="#88867f" stroke-width="1.5" fill="none" marker-end="url(#ar2)"/>
+    <line x1="340" y1="312" x2="340" y2="332" stroke="#88867f" stroke-width="1.5" fill="none" marker-end="url(#ar2)"/>
+    <line x1="340" y1="374" x2="340" y2="390" stroke="#88867f" stroke-width="1.5" fill="none" marker-end="url(#ar2)"/>
+  </g>
+</svg>
+<figcaption>图 3 · 从"撞车"到"合规推送"的七步决策链（案例中每一步都真实走过）</figcaption>
+</figure>
+
+<h3>本次案例沉淀的四条教训</h3>
+<ol>
+  <li><b>先审后合</b>：fetch + log + show + diff --stat，看清再合——blind pull 是新手的头号事故源</li>
+  <li><b>先钉后动</b>：验证过的状态先打 tag，合并/大改之前它是唯一的后悔药</li>
+  <li><b>裁决要留痕</b>：为什么取谁的方案、依据什么测试证据，写进合并提交说明——三个月后复盘全靠它</li>
+  <li><b>沟通带证据</b>：否决同事的方案 ≠ 否定同事；对比文档 + 测试数据先行，他的提交永远在历史里可取回</li>
+</ol>
+
+<!-- ================= 第 6 章 ================= -->
+<h2 id="c6"><span class="no">⑥</span>命令速查卡</h2>
+
+<table>
+  <tr><th style="width:42%">场景</th><th>命令</th></tr>
+  <tr><td>看远程发生了什么（不动工作区）</td><td><code>git fetch origin</code> → <code>git log main..origin/main --oneline</code></td></tr>
+  <tr><td>看某个提交改了什么</td><td><code>git show &lt;hash&gt;</code></td></tr>
+  <tr><td>预判合并会撞哪些文件</td><td><code>git diff main...origin/main --stat</code></td></tr>
+  <tr><td>钉里程碑</td><td><code>git tag -a v1.1.0 -m "说明"</code> → <code>git push origin v1.1.0</code></td></tr>
+  <tr><td>对比任意状态</td><td><code>git diff v1.1.0 --stat</code></td></tr>
+  <tr><td>冲突到一半弃权</td><td><code>git merge --abort</code></td></tr>
+  <tr><td>合并后整体否定</td><td><code>git reset --hard ORIG_HEAD</code> 或 <code>git reset --hard v1.1.0</code></td></tr>
+  <tr><td>内容全取我方的策略合并</td><td><code>git merge -s ours &lt;branch&gt;</code></td></tr>
+  <tr><td>找回"丢失"的提交</td><td><code>git reflog</code> → <code>git reset --hard &lt;hash&gt;</code></td></tr>
+  <tr><td>取回历史中某个版本的文件</td><td><code>git show &lt;commit&gt;:&lt;路径&gt;</code></td></tr>
+</table>
+
+<div class="warn">
+  <b>红线清单（违反任何一条都可能造成协作事故）</b>
+  <ul style="margin:8px 0 0;">
+    <li>共享分支禁止 <code>push --force</code>（官方警告：会丢掉别人的工作）</li>
+    <li>有未提交改动时不要 merge / 切分支（官方警告 --abort 可能无法完全恢复）</li>
+    <li>不用 stash 当保险——重要内容宁可提交或复制备份</li>
+    <li>冲突不盲选 ours / theirs，逐块核对双方意图</li>
+    <li>结论性文档写完立即 commit——未跟踪 = 不设防</li>
+  </ul>
+</div>
+
+<div class="tip">
+  <b>结语：</b>git 的所有"异常"，几乎都是<b>保护机制在正确地拦住你</b>：
+  non-fast-forward 在保护远程的历史，checkout 拒绝在保护未跟踪的文件，冲突标记在保护双方的意图。
+  看懂它在保护什么，恐惧就变成了流程。
+</div>
+
+</main>
+<footer>本教材由 WorkBuddy（Agent 平台）整理生成 · LLM 基座：GLM · 技术内容依据 git-scm.com 官方文档核查 · 2026-09-12</footer>
+</body>
+</html>

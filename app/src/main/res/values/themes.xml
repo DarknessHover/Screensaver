@@ -1,0 +1,10 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- 应用基础主题。Compose 界面实际由 Material3 主题接管，
+         此主题仅用于启动闪屏与窗口背景，避免白屏。 -->
+    <style name="Theme.Screensaver" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <!-- 启动闪屏/窗口背景：品牌色过渡，避免白屏（API 24-30 生效） -->
+        <item name="android:windowBackground">@color/brand_primary</item>
+    </style>
+</resources>

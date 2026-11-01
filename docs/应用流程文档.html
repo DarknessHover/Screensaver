@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Screensaver 应用流程文档</title>
+  <link rel="stylesheet" href="assets/dom-diagrams.css">
+</head>
+<body>
+  <header class="page-header">
+    <h1>Screensaver 应用流程文档</h1>
+  </header>
+
+  <main class="document-shell">
+    <nav class="document-nav" aria-label="页内导航">
+      <a href="#flow-overview">流程总览</a>
+      <a href="#rule-save-flow">规则保存</a>
+      <a href="#scheduler-loop">闹钟循环</a>
+      <a href="#apply-wallpaper-flow">壁纸应用</a>
+      <a href="#system-entry-flow">系统入口</a>
+      <a href="#trigger-matrix">触发矩阵</a>
+      <a href="#failure-semantics">失败语义</a>
+      <a href="#verification">验证清单</a>
+      <a href="架构文档.html">架构文档</a>
+      <a href="架构文档.html#glossary">术语速查</a>
+    </nav>
+
+    <section id="flow-overview" class="content-section">
+      <h2>先理解四条主线</h2>
+      <p class="lede">应用的工作可以还原成四条可组合流程：规则保存改变 Room 状态；AlarmScheduler 维持一个下一次开始闹钟；AppContainer 按域解析并应用壁纸；Android 和 UI 事件决定何时调用前述流程。</p>
+      <div class="fact-grid">
+        <article class="fact-card"><strong>规则保存</strong><p>授权图片 → 验证区间 → 重读冲突 → 写库 → 重排 → 立即应用。</p></article>
+        <article class="fact-card"><strong>调度循环</strong><p>取消旧闹钟 → 计算最近开始 → 精确或降级注册 → 到点 → 应用 → 再排。</p></article>
+        <article class="fact-card"><strong>壁纸应用</strong><p>读取规则快照 → 依次处理 LOCK/SYSTEM → 无命中保持 → 有命中解码和设置。</p></article>
+        <article class="fact-card"><strong>事件入口</strong><p>启动、保存、删除、开机、包更新、授权获批、闹钟、亮屏和手动立即应用。</p></article>
+      </div>
+      <aside class="callout"><strong>最容易误读的事实：</strong>规则结束时间本身不会触发“恢复”动作。应用只在下一条规则开始时切换；没有新规则时继续保持设备已有壁纸。</aside>
+    </section>
+
+    <section id="rule-save-flow" class="content-section">
+      <h2>新建或编辑规则时发生什么？</h2>
+      <p class="lede">即时 UI 校验只用于反馈；真正保存前会重新读取数据库区间再判断，避免依赖进入页面时的陈旧 occupiedIntervals。数据库仍没有跨行约束，所以这不是并发事务级保证。</p>
+
+      <figure id="diagram-rule-save" class="diagram" aria-labelledby="caption-rule-save">
+        <div class="diagram-header">
+          <div>
+            <span class="diagram-title">图 1 · 规则加载、选图与保存</span>
+            <span class="diagram-subtitle">来源：RuleEditorScreen、RuleEditorViewModel、ScheduleEngine、AppContainer</span>
+          </div>
+        </div>
+        <div class="diagram-viewport">
+          <div class="diagram-stage" data-layout="manual" data-columns="12">
+            <svg class="connector-layer" aria-hidden="true"></svg>
+
+            <article id="save-enter-editor" class="flow-node" data-node-type="component" data-row="1" data-col="1" data-col-span="2">
+              <span class="node-id">ENTRY</span>
+              <strong>进入 editor 路由</strong>
+              <p>携带 ruleId；新建时还携带首页当前 domain。</p>
+            </article>
+            <article id="save-existing-rule" class="flow-node" data-node-type="decision" data-row="1" data-col="4" data-col-span="2">
+              <span class="node-id">DECISION</span>
+              <strong>ruleId 指向现有规则？</strong>
+              <p>null、负数或查无记录都按新建处理。</p>
+            </article>
+            <article id="save-load-existing" class="flow-node" data-node-type="data-state" data-state="editing-existing" data-row="1" data-col="7" data-col-span="2">
+              <span class="node-id">STATE</span>
+              <strong>加载实体状态</strong>
+              <p>时间、图片 URI、domain、createdAt 来自 Room。</p>
+            </article>
+            <article id="save-create-default" class="flow-node" data-node-type="data-state" data-state="editing-new" data-row="1" data-col="10" data-col-span="2">
+              <span class="node-id">STATE</span>
+              <strong>创建默认状态</strong>
+              <p>默认 09:00–17:00；domain 继承首页来源。</p>
+            </article>
+
+            <article id="save-load-occupied" class="flow-node" data-node-type="data-state" data-state="occupied-intervals" data-row="3" data-col="1" data-col-span="3">
+              <span class="node-id">ROOM READ</span>
+              <strong>加载同域占用区间</strong>
+              <p>编辑现有规则时排除自身 ID；跨域规则不参与冲突。</p>
+            </article>
+            <article id="save-user-edits" class="flow-node" data-node-type="component" data-row="3" data-col="5" data-col-span="3">
+              <span class="node-id">USER INPUT</span>
+              <strong>编辑域、时间和图片</strong>
+              <p>时间轴和 HH:mm 输入同步到 RuleEditorState。</p>
+            </article>
+            <article id="save-image-picked" class="flow-node" data-node-type="decision" data-row="3" data-col="10" data-col-span="3">
+              <span class="node-id">DECISION</span>
+              <strong>新图片取得持久读授权？</strong>
+              <p>先 take，再查询 persistedUriPermissions 确认。</p>
+            </article>
+
+            <article id="save-image-rejected" class="flow-node" data-node-type="terminal" data-state="image-not-selected" data-row="5" data-col="1" data-col-span="3">
+              <span class="node-id">SAFE EXIT</span>
+              <strong>提示并保留原编辑状态</strong>
+              <p>授权失败不写 selectedImageUri；用户可重新选择。</p>
+            </article>
+            <article id="save-submit" class="flow-node" data-node-type="decision" data-row="5" data-col="5" data-col-span="2">
+              <span class="node-id">SUBMISSION GATE</span>
+              <strong>当前已经 saving？</strong>
+              <p>ViewModel 在 viewModelScope 中处理；首次提交先过基础校验，再把 saving 设为 true。</p>
+            </article>
+            <article id="save-image-present" class="flow-node" data-node-type="decision" data-row="5" data-col="8" data-col-span="2">
+              <span class="node-id">DECISION</span>
+              <strong>图片 URI 非空？</strong>
+              <p>这是保存链的第一道硬校验。</p>
+            </article>
+            <article id="save-range-valid" class="flow-node" data-node-type="decision" data-row="5" data-col="11" data-col-span="2">
+              <span class="node-id">DECISION</span>
+              <strong>区间合法？</strong>
+              <p>要求 0 ≤ start &lt; end ≤ 1440。</p>
+            </article>
+
+            <article id="save-duplicate-noop" class="flow-node" data-node-type="terminal" data-state="duplicate-submit-ignored" data-row="6" data-col="1" data-col-span="3">
+              <span class="node-id">NO-OP EXIT</span>
+              <strong>忽略重复提交</strong>
+              <p>不提示、不写库；正在运行的首次保存继续完成。</p>
+            </article>
+
+            <article id="save-validation-failed" class="flow-node" data-node-type="terminal" data-state="not-saved" data-row="7" data-col="1" data-col-span="3">
+              <span class="node-id">SAFE EXIT</span>
+              <strong>Snackbar：拒绝保存</strong>
+              <p>未选图或时间非法时不写库、不排程；此时 saving 尚未设为 true。</p>
+            </article>
+            <article id="save-reread-intervals" class="flow-node" data-node-type="data-state" data-state="fresh-interval-snapshot" data-row="7" data-col="5" data-col-span="3">
+              <span class="node-id">ROOM READ</span>
+              <strong>重新读取当前同域区间</strong>
+              <p>不使用进入页面时的 occupiedIntervals 作为最终依据。</p>
+            </article>
+            <article id="save-conflict" class="flow-node" data-node-type="decision" data-row="7" data-col="10" data-col-span="3">
+              <span class="node-id">DECISION</span>
+              <strong>与任一同域区间重叠？</strong>
+              <p>重叠公式：newStart &lt; oldEnd 且 oldStart &lt; newEnd。</p>
+            </article>
+
+            <article id="save-conflict-exit" class="flow-node" data-node-type="terminal" data-state="not-saved-conflict" data-row="9" data-col="1" data-col-span="3">
+              <span class="node-id">SAFE EXIT</span>
+              <strong>Snackbar：指出冲突区间</strong>
+              <p>finally 会把 saving 恢复为 false，编辑页保持可操作。</p>
+            </article>
+            <article id="save-write-room" class="flow-node" data-node-type="side-effect" data-side-effect="insert-or-update-rule" data-row="9" data-col="5" data-col-span="3">
+              <span class="node-id">DATABASE WRITE</span>
+              <strong>插入或更新 rules</strong>
+              <p>新建使用当前时间作 createdAt；编辑保留原 createdAt。</p>
+            </article>
+            <article id="save-uri-changed" class="flow-node" data-node-type="decision" data-row="9" data-col="10" data-col-span="3">
+              <span class="node-id">DECISION</span>
+              <strong>旧 URI 被替换？</strong>
+              <p>仅编辑现有规则且 URI 发生变化时检查旧授权。</p>
+            </article>
+
+            <article id="save-release-old" class="flow-node" data-node-type="side-effect" data-side-effect="release-unused-uri" data-row="11" data-col="1" data-col-span="3">
+              <span class="node-id">CONDITIONAL SIDE EFFECT</span>
+              <strong>无引用才释放旧授权</strong>
+              <p>若其他规则仍使用相同 URI，则保持授权；释放异常只写警告，保存链继续。</p>
+            </article>
+            <article id="save-reschedule" class="flow-node" data-node-type="component" data-row="11" data-col="5" data-col-span="2">
+              <span class="node-id">FOLLOW-UP</span>
+              <strong>rescheduleNext</strong>
+              <p>数据库已改变，重新计算最近下一次开始。</p>
+            </article>
+            <article id="save-apply-current" class="flow-node" data-node-type="component" data-row="11" data-col="8" data-col-span="2">
+              <span class="node-id">FOLLOW-UP</span>
+              <strong>applyCurrentNow</strong>
+              <p>保存后立即让当前命中规则反映到两个域。</p>
+            </article>
+            <article id="save-navigate-home" class="flow-node" data-node-type="terminal" data-state="saved" data-row="11" data-col="11" data-col-span="2">
+              <span class="node-id">SUCCESS EXIT</span>
+              <strong>返回首页</strong>
+              <p>不再发送不可见的“保存成功” Snackbar。</p>
+            </article>
+            <article id="save-exception-exit" class="flow-node" data-node-type="terminal" data-state="save-failed" data-row="12" data-col="1" data-col-span="3">
+              <span class="node-id">FAILURE EXIT</span>
+              <strong>Snackbar：保存失败</strong>
+              <p>写库、重排或立即应用抛出异常时进入；finally 恢复 saving=false。</p>
+            </article>
+          </div>
+        </div>
+        <figcaption id="caption-rule-save">基础图片/范围校验通过后才设置 saving=true；随后写库、重排和立即应用按顺序执行。后半段异常会提示“保存失败”，但已完成的写库或重排不会回滚。当前也没有事务把冲突检查与写库绑定为原子操作。</figcaption>
+        <details class="relation-index">
+          <summary>静态边索引（29 条）</summary>
+          <ol class="edge-model">
+            <li data-from="save-enter-editor" data-to="save-existing-rule" data-label="解析 ruleId" data-kind="control"><span class="edge-key">save-enter-editor → save-existing-rule</span>：ViewModel 根据 ruleId 决定编辑或新建。</li>
+            <li data-from="save-existing-rule" data-to="save-load-existing" data-label="是" data-kind="data"><span class="edge-key">save-existing-rule → save-load-existing</span>：按 ID 从 Room 读取现有实体。</li>
+            <li data-from="save-existing-rule" data-to="save-create-default" data-label="否" data-kind="control" data-route="top"><span class="edge-key">save-existing-rule → save-create-default</span>：不存在有效实体时创建新规则默认状态。</li>
+            <li data-from="save-load-existing" data-to="save-load-occupied" data-label="排除自身" data-kind="data"><span class="edge-key">save-load-existing → save-load-occupied</span>：加载同域其他规则区间。</li>
+            <li data-from="save-create-default" data-to="save-load-occupied" data-label="不排除 ID" data-kind="data"><span class="edge-key">save-create-default → save-load-occupied</span>：新建时加载该域全部区间。</li>
+            <li data-from="save-load-occupied" data-to="save-user-edits" data-label="提供灰带与反馈" data-kind="data"><span class="edge-key">save-load-occupied → save-user-edits</span>：占用区间供时间轴和即时冲突提示使用。</li>
+            <li data-from="save-user-edits" data-to="save-image-picked" data-label="选择新图片时" data-kind="control"><span class="edge-key">save-user-edits → save-image-picked</span>：只有实际选图才进入 URI 授权判断。</li>
+            <li data-from="save-image-picked" data-to="save-image-rejected" data-label="否" data-kind="failure"><span class="edge-key">save-image-picked → save-image-rejected</span>：未取得持久读授权时拒绝图片。</li>
+            <li data-from="save-image-rejected" data-to="save-user-edits" data-label="重新选择" data-kind="loop"><span class="edge-key">save-image-rejected → save-user-edits</span>：用户可以继续编辑并再次选图。</li>
+            <li data-from="save-image-picked" data-to="save-submit" data-label="是：状态已更新" data-kind="data"><span class="edge-key">save-image-picked → save-submit</span>：授权成功后，用户可以提交。</li>
+            <li data-from="save-user-edits" data-to="save-submit" data-label="沿用原图并提交" data-kind="control"><span class="edge-key">save-user-edits → save-submit</span>：编辑已有规则时可以不重新选图。</li>
+            <li data-from="save-submit" data-to="save-duplicate-noop" data-label="是：saving=true" data-kind="control"><span class="edge-key">save-submit → save-duplicate-noop</span>：保存已在运行时，重复点击直接 no-op。</li>
+            <li data-from="save-submit" data-to="save-image-present" data-label="否：检查基础字段" data-kind="control"><span class="edge-key">save-submit → save-image-present</span>：没有保存任务在运行时，先检查图片与时间。</li>
+            <li data-from="save-image-present" data-to="save-validation-failed" data-label="否" data-kind="failure"><span class="edge-key">save-image-present → save-validation-failed</span>：没有 URI 时拒绝保存。</li>
+            <li data-from="save-image-present" data-to="save-range-valid" data-label="是" data-kind="control"><span class="edge-key">save-image-present → save-range-valid</span>：存在图片后校验时间范围。</li>
+            <li data-from="save-range-valid" data-to="save-validation-failed" data-label="否" data-kind="failure"><span class="edge-key">save-range-valid → save-validation-failed</span>：start/end 非法时拒绝保存。</li>
+            <li data-from="save-range-valid" data-to="save-reread-intervals" data-label="是：设置 saving=true" data-kind="data"><span class="edge-key">save-range-valid → save-reread-intervals</span>：基础校验通过后锁住重复提交，并从 Room 获取最新区间。</li>
+            <li data-from="save-reread-intervals" data-to="save-conflict" data-label="fresh snapshot" data-kind="data"><span class="edge-key">save-reread-intervals → save-conflict</span>：对当前同域区间进行最终重叠判断。</li>
+            <li data-from="save-conflict" data-to="save-conflict-exit" data-label="是" data-kind="failure"><span class="edge-key">save-conflict → save-conflict-exit</span>：有冲突时不写库。</li>
+            <li data-from="save-conflict" data-to="save-write-room" data-label="否" data-kind="side-effect"><span class="edge-key">save-conflict → save-write-room</span>：无冲突时执行 insert 或 update。</li>
+            <li data-from="save-write-room" data-to="save-uri-changed" data-label="写入成功" data-kind="control"><span class="edge-key">save-write-room → save-uri-changed</span>：成功写库后判断旧 URI 是否需要处理。</li>
+            <li data-from="save-uri-changed" data-to="save-release-old" data-label="是" data-kind="side-effect"><span class="edge-key">save-uri-changed → save-release-old</span>：替换图片时按数据库引用释放旧授权。</li>
+            <li data-from="save-release-old" data-to="save-reschedule" data-label="释放或保留后" data-kind="control"><span class="edge-key">save-release-old → save-reschedule</span>：授权清理结束后继续重排。</li>
+            <li data-from="save-uri-changed" data-to="save-reschedule" data-label="否" data-kind="control"><span class="edge-key">save-uri-changed → save-reschedule</span>：URI 未变时直接重排。</li>
+            <li data-from="save-reschedule" data-to="save-apply-current" data-label="下一次已更新" data-kind="control"><span class="edge-key">save-reschedule → save-apply-current</span>：重排后立即应用当前两个域。</li>
+            <li data-from="save-apply-current" data-to="save-navigate-home" data-label="完成" data-kind="control"><span class="edge-key">save-apply-current → save-navigate-home</span>：保存链完成后返回首页。</li>
+            <li data-from="save-write-room" data-to="save-exception-exit" data-label="写库异常" data-kind="failure" data-route="left"><span class="edge-key">save-write-room → save-exception-exit</span>：insert/update 抛异常时进入统一失败出口。</li>
+            <li data-from="save-reschedule" data-to="save-exception-exit" data-label="排程异常" data-kind="failure" data-route="left"><span class="edge-key">save-reschedule → save-exception-exit</span>：写库已完成但重排抛异常时提示失败；数据库不会自动回滚。</li>
+            <li data-from="save-apply-current" data-to="save-exception-exit" data-label="应用异常" data-kind="failure" data-route="left"><span class="edge-key">save-apply-current → save-exception-exit</span>：写库和重排已完成但立即应用抛异常时提示失败；前两步不会自动回滚。</li>
+          </ol>
+        </details>
+      </figure>
+      <aside class="callout"><strong>未保存授权：</strong>选图成功就已经取得持久 URI 读授权。如果随后取消、校验/冲突失败，或再次选择另一张图，当前实现不会自动回收此前未被规则引用的授权；这是已知缺口，不要误以为“没有写库”就没有副作用。</aside>
+    </section>
+
+    <section id="scheduler-loop" class="content-section">
+      <h2>为什么系统中只需要一个闹钟？</h2>
+      <p class="lede">每次重排都从“所有合法且有图规则的开始分钟”计算最近下一次发生时间。闹钟到点后接收器再次重排，因此形成每日链式循环，而不是一次注册 1441 个候选 PendingIntent。计算使用设备当前本地日历时间。</p>
+
+      <figure id="diagram-scheduler-loop" class="diagram" aria-labelledby="caption-scheduler-loop">
+        <div class="diagram-header"><div><span class="diagram-title">图 2 · 下一次开始闹钟的闭环</span><span class="diagram-subtitle">来源：AlarmScheduler、ScheduleEngine、WallpaperSwitchReceiver</span></div></div>
+        <div class="diagram-viewport">
+          <div class="diagram-stage" data-layout="manual" data-columns="12">
+            <svg class="connector-layer" aria-hidden="true"></svg>
+
+            <article id="sched-entry" class="flow-node" data-node-type="component" data-row="1" data-col="1" data-col-span="2"><span class="node-id">ENTRY</span><strong>rescheduleNext</strong><p>由启动、保存、删除、系统广播或上次闹钟触发。</p></article>
+            <article id="sched-cancel-current" class="flow-node" data-node-type="side-effect" data-side-effect="cancel-current-pending-intent" data-row="1" data-col="4" data-col-span="2"><span class="node-id">SIDE EFFECT</span><strong>取消固定请求码闹钟</strong><p>使用 FLAG_NO_CREATE 查询，存在才 cancel 并取消 PendingIntent。</p></article>
+            <article id="sched-legacy-cleared" class="flow-node" data-node-type="decision" data-row="1" data-col="7" data-col-span="2"><span class="node-id">DECISION</span><strong>旧版闹钟已清理？</strong><p>SharedPreferences 标记控制一次性迁移。</p></article>
+            <article id="sched-clear-legacy" class="flow-node" data-node-type="side-effect" data-side-effect="cancel-legacy-pending-intents" data-row="1" data-col="10" data-col-span="3"><span class="node-id">MIGRATION</span><strong>清理请求码 1..1440</strong><p>FLAG_NO_CREATE 保证只取消存在项，不创建新 PendingIntent。</p></article>
+
+            <article id="sched-read-rules" class="flow-node" data-node-type="data-state" data-state="current-rule-snapshot" data-row="3" data-col="1" data-col-span="3"><span class="node-id">ROOM READ</span><strong>读取全部规则</strong><p>每次重排使用最新数据库状态。</p></article>
+            <article id="sched-start-minutes" class="flow-node" data-node-type="component" data-row="3" data-col="5" data-col-span="3"><span class="node-id">PURE DOMAIN</span><strong>startMinutes 过滤去重</strong><p>跳过空 URI、非法区间；两个域同一分钟只保留一次。</p></article>
+            <article id="sched-any-start" class="flow-node" data-node-type="decision" data-row="3" data-col="10" data-col-span="3"><span class="node-id">DECISION</span><strong>存在可调度开始分钟？</strong><p>无规则、全非法或全无图都得到空集合。</p></article>
+
+            <article id="sched-no-alarm" class="flow-node" data-node-type="terminal" data-state="no-alarm-scheduled" data-row="5" data-col="1" data-col-span="3"><span class="node-id">NORMAL EXIT</span><strong>不注册闹钟</strong><p>保持已有壁纸；进程结束不等同于业务失败。</p></article>
+            <article id="sched-compute-next" class="flow-node" data-node-type="component" data-row="5" data-col="5" data-col-span="3"><span class="node-id">CALCULATION</span><strong>计算最近下一次发生</strong><p>每个开始分钟取严格晚于 now 的今天或明天时间，再选最小值。</p></article>
+            <article id="sched-exact-capable" class="flow-node" data-node-type="decision" data-row="5" data-col="10" data-col-span="3"><span class="node-id">DECISION</span><strong>可以安排精确闹钟？</strong><p>API 30 及以下视为可以；API 31+ 查询 canScheduleExactAlarms。</p></article>
+
+            <article id="sched-register-exact" class="flow-node" data-node-type="side-effect" data-side-effect="set-exact-alarm" data-row="7" data-col="2" data-col-span="3"><span class="node-id">ANDROID SIDE EFFECT</span><strong>setExactAndAllowWhileIdle</strong><p>RTC_WAKEUP，固定请求码，广播目标为 WallpaperSwitchReceiver。</p></article>
+            <article id="sched-register-fallback" class="flow-node" data-node-type="side-effect" data-side-effect="set-inexact-alarm" data-row="7" data-col="7" data-col-span="3"><span class="node-id">DEGRADED SIDE EFFECT</span><strong>setAndAllowWhileIdle</strong><p>仍可在 Doze 中调度，但触发可能延迟；本文不把经验性的“几分钟”当作上界保证。</p></article>
+            <article id="sched-wait" class="flow-node" data-node-type="data-state" data-state="alarm-pending" data-row="9" data-col="1" data-col-span="3"><span class="node-id">SYSTEM STATE</span><strong>等待系统到点</strong><p>应用无需常驻；PendingIntent 由系统持有。</p></article>
+            <article id="sched-alarm-fired" class="flow-node" data-node-type="component" data-row="9" data-col="5" data-col-span="3"><span class="node-id">RECEIVER</span><strong>WallpaperSwitchReceiver</strong><p>goAsync + IO 协程；先应用当前双域，再进入下一次重排。</p></article>
+            <article id="sched-apply-now" class="flow-node" data-node-type="shared-handler" data-row="9" data-col="10" data-col-span="3" data-checks="resolve-lock,resolve-system,image-uri"><span class="node-id">SHARED HANDLER</span><strong>applyCurrentNow</strong><p>对 LOCK、SYSTEM 使用同一规则快照与当前分钟。</p></article>
+          </div>
+        </div>
+        <figcaption id="caption-scheduler-loop">精确权限只影响“何时触发”的精度，不改变到点后的业务链。权限新获批时系统广播会主动重排；权限撤销没有单独恢复入口，要等下一次重排才会改用降级 API。调度器先取消旧闹钟，因此取消后的读库/注册异常可能暂时留下“无闹钟”状态。</figcaption>
+        <details class="relation-index">
+          <summary>静态边索引（18 条）</summary>
+          <ol class="edge-model">
+            <li data-from="sched-entry" data-to="sched-cancel-current" data-label="先取消" data-kind="control"><span class="edge-key">sched-entry → sched-cancel-current</span>：任何重排都先移除当前固定请求码闹钟。</li>
+            <li data-from="sched-cancel-current" data-to="sched-legacy-cleared" data-label="检查迁移" data-kind="control"><span class="edge-key">sched-cancel-current → sched-legacy-cleared</span>：取消当前模型后检查旧多闹钟模型是否清理。</li>
+            <li data-from="sched-legacy-cleared" data-to="sched-clear-legacy" data-label="否" data-kind="side-effect"><span class="edge-key">sched-legacy-cleared → sched-clear-legacy</span>：首次升级时扫描并取消旧请求码。</li>
+            <li data-from="sched-clear-legacy" data-to="sched-read-rules" data-label="写入已清理标记" data-kind="control"><span class="edge-key">sched-clear-legacy → sched-read-rules</span>：迁移完成后读取当前规则。</li>
+            <li data-from="sched-legacy-cleared" data-to="sched-read-rules" data-label="是" data-kind="control"><span class="edge-key">sched-legacy-cleared → sched-read-rules</span>：后续重排跳过旧闹钟扫描。</li>
+            <li data-from="sched-read-rules" data-to="sched-any-start" data-label="空规则：直接为否" data-kind="control"><span class="edge-key">sched-read-rules → sched-any-start</span>：代码对 rules 为空提前返回，不调用领域过滤。</li>
+            <li data-from="sched-read-rules" data-to="sched-start-minutes" data-label="非空规则快照" data-kind="data"><span class="edge-key">sched-read-rules → sched-start-minutes</span>：非空数据库快照交给纯领域函数。</li>
+            <li data-from="sched-start-minutes" data-to="sched-any-start" data-label="去重集合" data-kind="data"><span class="edge-key">sched-start-minutes → sched-any-start</span>：判断是否至少有一个可调度开始点。</li>
+            <li data-from="sched-any-start" data-to="sched-no-alarm" data-label="否" data-kind="control"><span class="edge-key">sched-any-start → sched-no-alarm</span>：空集合正常结束，不注册任何闹钟。</li>
+            <li data-from="sched-any-start" data-to="sched-compute-next" data-label="是" data-kind="control"><span class="edge-key">sched-any-start → sched-compute-next</span>：为每个分钟计算下一次日历时间。</li>
+            <li data-from="sched-compute-next" data-to="sched-exact-capable" data-label="最近 triggerAt" data-kind="data"><span class="edge-key">sched-compute-next → sched-exact-capable</span>：得到唯一最近触发时间后选择系统 API。</li>
+            <li data-from="sched-exact-capable" data-to="sched-register-exact" data-label="是" data-kind="side-effect"><span class="edge-key">sched-exact-capable → sched-register-exact</span>：有能力时注册精确且允许空闲的闹钟。</li>
+            <li data-from="sched-exact-capable" data-to="sched-register-fallback" data-label="否" data-kind="side-effect"><span class="edge-key">sched-exact-capable → sched-register-fallback</span>：无能力时注册允许空闲的非精确闹钟。</li>
+            <li data-from="sched-register-exact" data-to="sched-wait" data-label="PendingIntent 已注册" data-kind="data"><span class="edge-key">sched-register-exact → sched-wait</span>：系统持有精确闹钟。</li>
+            <li data-from="sched-register-fallback" data-to="sched-wait" data-label="PendingIntent 已注册" data-kind="data"><span class="edge-key">sched-register-fallback → sched-wait</span>：系统持有降级闹钟。</li>
+            <li data-from="sched-wait" data-to="sched-alarm-fired" data-label="到点或延迟后" data-kind="loop"><span class="edge-key">sched-wait → sched-alarm-fired</span>：系统发送 PendingIntent 广播。</li>
+            <li data-from="sched-alarm-fired" data-to="sched-apply-now" data-label="先应用" data-kind="control"><span class="edge-key">sched-alarm-fired → sched-apply-now</span>：接收器先处理当前两个壁纸域。</li>
+            <li data-from="sched-apply-now" data-to="sched-entry" data-label="再重排下一次" data-kind="loop" data-route="left"><span class="edge-key">sched-apply-now → sched-entry</span>：应用完成后重新进入 rescheduleNext，形成每日闭环。</li>
+          </ol>
+        </details>
+      </figure>
+    </section>
+
+    <section id="apply-wallpaper-flow" class="content-section">
+      <h2>一次“应用当前壁纸”怎样处理两个域？</h2>
+      <p class="lede">双域入口只读取一次规则和当前分钟，然后依次处理 LOCK、SYSTEM。单域亮屏补偿直接进入同一个域处理器。无命中、无 URI、退避中或解码失败都属于“保持当前壁纸”的安全出口。</p>
+
+      <figure id="diagram-apply-wallpaper" class="diagram" aria-labelledby="caption-apply-wallpaper">
+        <div class="diagram-header"><div><span class="diagram-title">图 3 · 按域解析、解码与 WallpaperManager 副作用</span><span class="diagram-subtitle">来源：AppContainer.applyCurrentNow/applyCurrentDomain/applyDomain、WallpaperApplier</span></div></div>
+        <div class="diagram-viewport">
+          <div class="diagram-stage" data-layout="manual" data-columns="12">
+            <svg class="connector-layer" aria-hidden="true"></svg>
+
+            <article id="apply-entry" class="flow-node" data-node-type="decision" data-row="1" data-col="1" data-col-span="3"><span class="node-id">ENTRY DECISION</span><strong>双域入口还是单域入口？</strong><p>applyCurrentNow 处理 LOCK→SYSTEM；applyCurrentDomain 只处理指定域。</p></article>
+            <article id="apply-snapshot" class="flow-node" data-node-type="data-state" data-state="rules-and-minute-snapshot" data-row="1" data-col="5" data-col-span="3"><span class="node-id">SNAPSHOT</span><strong>读取规则与当前分钟</strong><p>双域共享同一规则快照和 now，减少跨域时间漂移。</p></article>
+            <article id="apply-select-domain" class="flow-node" data-node-type="component" data-row="1" data-col="10" data-col-span="3"><span class="node-id">ITERATION</span><strong>选择待处理 domain</strong><p>双域依次 LOCK、SYSTEM；单域直接使用传入值。</p></article>
+
+            <article id="apply-resolve" class="flow-node" data-node-type="component" data-row="3" data-col="1" data-col-span="3"><span class="node-id">PURE DOMAIN</span><strong>ScheduleEngine.resolve</strong><p>过滤 domain，寻找 start ≤ now &lt; end 的规则。</p></article>
+            <article id="apply-rule-hit" class="flow-node" data-node-type="decision" data-row="3" data-col="5" data-col-span="3"><span class="node-id">DECISION</span><strong>当前域有命中规则？</strong><p>无命中是正常空档，不恢复系统默认壁纸。</p></article>
+            <article id="apply-uri-present" class="flow-node" data-node-type="decision" data-row="3" data-col="10" data-col-span="3"><span class="node-id">DECISION</span><strong>命中规则有 imageUri？</strong><p>schema 可空，因此运行链仍防御性检查。</p></article>
+
+            <article id="apply-keep-existing" class="flow-node" data-node-type="terminal" data-state="wallpaper-unchanged" data-row="5" data-col="1" data-col-span="3"><span class="node-id">NO-OP EXIT</span><strong>保持该域已有壁纸</strong><p>记录原因，返回 false，不清空、不恢复默认图。</p></article>
+            <article id="apply-lock-backoff" class="flow-node" data-node-type="decision" data-row="5" data-col="5" data-col-span="3"><span class="node-id">DECISION</span><strong>LOCK 且仍在失败退避期？</strong><p>SYSTEM 永远为否；LOCK 以 elapsedRealtime 判断 30 分钟窗口。</p></article>
+            <article id="apply-decode" class="flow-node" data-node-type="component" data-row="5" data-col="10" data-col-span="3"><span class="node-id">IO WORK</span><strong>两阶段降采样解码</strong><p>先 bounds，再计算 inSampleSize，最后读取 Bitmap。</p></article>
+
+            <article id="apply-decode-ok" class="flow-node" data-node-type="decision" data-row="7" data-col="1" data-col-span="3"><span class="node-id">DECISION</span><strong>Bitmap 解码成功？</strong><p>打开流失败、尺寸无效或 decode 返回 null 都是否。</p></article>
+            <article id="apply-set-domain" class="flow-node" data-node-type="side-effect" data-side-effect="set-wallpaper-domain" data-row="7" data-col="5" data-col-span="3"><span class="node-id">ANDROID SIDE EFFECT</span><strong>WallpaperManager.setBitmap</strong><p>LOCK 使用 FLAG_LOCK；SYSTEM 使用 FLAG_SYSTEM；Bitmap 在 finally 中回收。</p></article>
+            <article id="apply-set-ok" class="flow-node" data-node-type="decision" data-row="7" data-col="10" data-col-span="3"><span class="node-id">DECISION</span><strong>系统设置成功？</strong><p>runCatching 把厂商拒绝和系统异常转为 false。</p></article>
+
+            <article id="apply-success" class="flow-node" data-node-type="terminal" data-state="domain-applied" data-row="9" data-col="1" data-col-span="3"><span class="node-id">DOMAIN SUCCESS</span><strong>记录成功并回收 Bitmap</strong><p>LOCK 成功同时清空失败退避时间。</p></article>
+            <article id="apply-lock-failure" class="flow-node" data-node-type="decision" data-row="9" data-col="5" data-col-span="3"><span class="node-id">DECISION</span><strong>失败域是 LOCK？</strong><p>只有锁屏失败需要设置退避；桌面失败只记录日志。</p></article>
+            <article id="apply-set-backoff" class="flow-node" data-node-type="side-effect" data-side-effect="set-lock-retry-after" data-row="9" data-col="10" data-col-span="3"><span class="node-id">RECOVERY STATE</span><strong>设置 30 分钟 retryAfter</strong><p>进程重启后该内存状态会重置，允许重新尝试。</p></article>
+
+            <article id="apply-domain-done" class="flow-node" data-node-type="decision" data-row="11" data-col="4" data-col-span="3"><span class="node-id">ITERATION DECISION</span><strong>双域还有下一个 domain？</strong><p>LOCK 完成后继续 SYSTEM；单域或 SYSTEM 完成后退出。</p></article>
+            <article id="apply-finished" class="flow-node" data-node-type="terminal" data-state="apply-call-finished" data-row="11" data-col="9" data-col-span="3"><span class="node-id">CALL EXIT</span><strong>应用调用结束</strong><p>某域 false 不会阻止另一域尝试；调用完成不代表两个域都成功。</p></article>
+          </div>
+        </div>
+        <figcaption id="caption-apply-wallpaper">“调用正常完成”和“壁纸业务成功”不是同一概念。applyCurrentNow 不聚合返回值；每个域的成功或跳过只通过日志和单域 Boolean 体现。</figcaption>
+        <details class="relation-index">
+          <summary>静态边索引（23 条）</summary>
+          <ol class="edge-model">
+            <li data-from="apply-entry" data-to="apply-snapshot" data-label="任一入口" data-kind="control"><span class="edge-key">apply-entry → apply-snapshot</span>：双域和单域入口都先读取规则及当前分钟。</li>
+            <li data-from="apply-snapshot" data-to="apply-select-domain" data-label="快照就绪" data-kind="data"><span class="edge-key">apply-snapshot → apply-select-domain</span>：根据入口建立待处理域序列。</li>
+            <li data-from="apply-select-domain" data-to="apply-resolve" data-label="当前 domain" data-kind="control"><span class="edge-key">apply-select-domain → apply-resolve</span>：把同一快照和当前域交给纯函数。</li>
+            <li data-from="apply-resolve" data-to="apply-rule-hit" data-label="规则或 null" data-kind="data"><span class="edge-key">apply-resolve → apply-rule-hit</span>：resolve 返回当前命中规则或 null。</li>
+            <li data-from="apply-rule-hit" data-to="apply-keep-existing" data-label="否" data-kind="control"><span class="edge-key">apply-rule-hit → apply-keep-existing</span>：无命中时保持已有壁纸。</li>
+            <li data-from="apply-rule-hit" data-to="apply-uri-present" data-label="是" data-kind="control"><span class="edge-key">apply-rule-hit → apply-uri-present</span>：命中后继续检查图片 URI。</li>
+            <li data-from="apply-uri-present" data-to="apply-keep-existing" data-label="否" data-kind="failure"><span class="edge-key">apply-uri-present → apply-keep-existing</span>：空 URI 防御性跳过。</li>
+            <li data-from="apply-uri-present" data-to="apply-lock-backoff" data-label="是" data-kind="control"><span class="edge-key">apply-uri-present → apply-lock-backoff</span>：有 URI 后进入 WallpaperApplier。</li>
+            <li data-from="apply-lock-backoff" data-to="apply-keep-existing" data-label="是" data-kind="failure"><span class="edge-key">apply-lock-backoff → apply-keep-existing</span>：LOCK 退避期间跳过本次系统调用。</li>
+            <li data-from="apply-lock-backoff" data-to="apply-decode" data-label="否" data-kind="control"><span class="edge-key">apply-lock-backoff → apply-decode</span>：SYSTEM 或退避已到期时解码图片。</li>
+            <li data-from="apply-decode" data-to="apply-decode-ok" data-label="Bitmap?" data-kind="data"><span class="edge-key">apply-decode → apply-decode-ok</span>：解码结果进入判定。</li>
+            <li data-from="apply-decode-ok" data-to="apply-keep-existing" data-label="否" data-kind="failure"><span class="edge-key">apply-decode-ok → apply-keep-existing</span>：解码失败时保持已有壁纸。</li>
+            <li data-from="apply-decode-ok" data-to="apply-set-domain" data-label="是" data-kind="side-effect"><span class="edge-key">apply-decode-ok → apply-set-domain</span>：成功解码后调用 WallpaperManager。</li>
+            <li data-from="apply-set-domain" data-to="apply-set-ok" data-label="系统结果" data-kind="data"><span class="edge-key">apply-set-domain → apply-set-ok</span>：系统调用成功或异常转为 Boolean。</li>
+            <li data-from="apply-set-ok" data-to="apply-success" data-label="是" data-kind="control"><span class="edge-key">apply-set-ok → apply-success</span>：成功时记录日志，LOCK 同时解除退避。</li>
+            <li data-from="apply-set-ok" data-to="apply-lock-failure" data-label="否" data-kind="failure"><span class="edge-key">apply-set-ok → apply-lock-failure</span>：失败时区分 LOCK 和 SYSTEM。</li>
+            <li data-from="apply-lock-failure" data-to="apply-set-backoff" data-label="是：LOCK" data-kind="side-effect"><span class="edge-key">apply-lock-failure → apply-set-backoff</span>：锁屏失败设置下一次允许尝试时间。</li>
+            <li data-from="apply-lock-failure" data-to="apply-domain-done" data-label="否：SYSTEM" data-kind="failure"><span class="edge-key">apply-lock-failure → apply-domain-done</span>：桌面失败只记录日志并完成该域。</li>
+            <li data-from="apply-set-backoff" data-to="apply-domain-done" data-label="退避已记录" data-kind="control"><span class="edge-key">apply-set-backoff → apply-domain-done</span>：锁屏失败处理后完成该域。</li>
+            <li data-from="apply-success" data-to="apply-domain-done" data-label="该域完成" data-kind="control"><span class="edge-key">apply-success → apply-domain-done</span>：成功路径进入域循环判断。</li>
+            <li data-from="apply-keep-existing" data-to="apply-domain-done" data-label="该域跳过" data-kind="control"><span class="edge-key">apply-keep-existing → apply-domain-done</span>：所有安全跳过路径也进入循环判断。</li>
+            <li data-from="apply-domain-done" data-to="apply-select-domain" data-label="是：处理下一域" data-kind="loop" data-route="left"><span class="edge-key">apply-domain-done → apply-select-domain</span>：双域入口从 LOCK 回到选择器处理 SYSTEM。</li>
+            <li data-from="apply-domain-done" data-to="apply-finished" data-label="否" data-kind="control"><span class="edge-key">apply-domain-done → apply-finished</span>：没有后续域时结束本次调用。</li>
+          </ol>
+        </details>
+      </figure>
+    </section>
+
+    <section id="system-entry-flow" class="content-section">
+      <h2>不同事件如何进入共享流程？</h2>
+      <p class="lede">入口差异主要在“是否排程”“应用双域还是单域”“是否立即应用”。这些路径共享处理器，但并不继承完全相同的上游检查。</p>
+
+      <figure id="diagram-system-entries" class="diagram" aria-labelledby="caption-system-entries">
+        <div class="diagram-header"><div><span class="diagram-title">图 4 · UI 与 Android 事件路由</span><span class="diagram-subtitle">共享处理器的上游差异在节点和边上逐项标明</span></div></div>
+        <div class="diagram-viewport">
+          <div class="diagram-stage" data-layout="manual" data-columns="12">
+            <svg class="connector-layer" aria-hidden="true"></svg>
+
+            <article id="entry-app-launch" class="flow-node" data-node-type="component" data-row="1" data-col="1" data-col-span="2"><span class="node-id">UI ENTRY</span><strong>MainActivity.onCreate</strong><p>用户打开或系统重建 Activity。</p></article>
+            <article id="entry-rule-saved" class="flow-node" data-node-type="component" data-row="1" data-col="4" data-col-span="2"><span class="node-id">UI ENTRY</span><strong>规则已写入</strong><p>图片、范围和冲突检查已通过；后续重排/应用仍可能失败。</p></article>
+            <article id="entry-rule-deleted" class="flow-node" data-node-type="component" data-row="1" data-col="7" data-col-span="2"><span class="node-id">UI ENTRY</span><strong>确认删除规则</strong><p>用户已经通过删除确认对话框。</p></article>
+            <article id="entry-manual-apply" class="flow-node" data-node-type="component" data-row="1" data-col="10" data-col-span="2"><span class="node-id">UI ENTRY</span><strong>手动立即应用</strong><p>不改规则、不改闹钟；会真实调用 WallpaperManager，不是无副作用预览。</p></article>
+
+            <article id="entry-boot-update" class="flow-node" data-node-type="external-system" data-row="3" data-col="1" data-col-span="2"><span class="node-id">SYSTEM ENTRY</span><strong>开机 / 包更新</strong><p>BootCompletedReceiver 静态注册并要求系统广播权限。</p></article>
+            <article id="entry-exact-granted" class="flow-node" data-node-type="external-system" data-row="3" data-col="4" data-col-span="2"><span class="node-id">SYSTEM ENTRY</span><strong>精确闹钟能力获批</strong><p>系统只在授权方向发送该广播。</p></article>
+            <article id="entry-alarm-fired" class="flow-node" data-node-type="external-system" data-row="3" data-col="7" data-col-span="2"><span class="node-id">SYSTEM ENTRY</span><strong>PendingIntent 到点</strong><p>WallpaperSwitchReceiver 不导出，只接收本应用 PendingIntent。</p></article>
+            <article id="entry-screen-on" class="flow-node" data-node-type="external-system" data-row="3" data-col="10" data-col-span="2"><span class="node-id">SYSTEM ENTRY</span><strong>ACTION_SCREEN_ON</strong><p>仅进程存活并已动态注册时可达。</p></article>
+
+            <article id="entry-delete-effects" class="flow-node" data-node-type="side-effect" data-side-effect="delete-rule-and-release-uri" data-row="5" data-col="1" data-col-span="3"><span class="node-id">DELETE SIDE EFFECTS</span><strong>删库 + 按引用释放 URI</strong><p>然后重排并重算首页当前规则；不会主动改回旧壁纸。</p></article>
+            <article id="entry-exact-check" class="flow-node" data-node-type="decision" data-row="5" data-col="5" data-col-span="3"><span class="node-id">DECISION</span><strong>canScheduleExact 仍为 true？</strong><p>授权广播路径额外复查，避免错误进入。</p></article>
+            <article id="entry-ignore-broadcast" class="flow-node" data-node-type="terminal" data-state="broadcast-ignored" data-row="5" data-col="10" data-col-span="3"><span class="node-id">SAFE EXIT</span><strong>忽略权限广播</strong><p>能力复查失败时既不排程，也不应用壁纸。</p></article>
+
+            <article id="entry-reschedule" class="flow-node" data-node-type="shared-handler" data-row="7" data-col="1" data-col-span="3" data-checks="current-rules,start-minutes,exact-capability"><span class="node-id">SHARED HANDLER</span><strong>rescheduleNext</strong><p>启动、保存、删除、开机/更新、授权获批、闹钟到点共享。</p></article>
+            <article id="entry-apply-both" class="flow-node" data-node-type="shared-handler" data-row="7" data-col="5" data-col-span="3" data-checks="resolve-lock,resolve-system,image-uri"><span class="node-id">SHARED HANDLER</span><strong>applyCurrentNow：双域</strong><p>启动、保存、手动、开机/更新和闹钟到点调用。</p></article>
+            <article id="entry-apply-lock" class="flow-node" data-node-type="shared-handler" data-row="7" data-col="10" data-col-span="3" data-checks="resolve-lock,image-uri" data-omits="system-domain"><span class="node-id">SHARED HANDLER</span><strong>applyCurrentDomain(LOCK)</strong><p>亮屏补偿只处理锁屏，不解析或设置桌面域。</p></article>
+
+            <article id="entry-finish" class="flow-node" data-node-type="terminal" data-state="entry-finished" data-row="9" data-col="5" data-col-span="3"><span class="node-id">EXIT</span><strong>入口处理结束</strong><p>Receiver 在 finally finish；UI 协程返回。完成不保证外部系统接受壁纸。</p></article>
+          </div>
+        </div>
+        <figcaption id="caption-system-entries">这是一张入口路由汇总图：同一入口连到两个共享处理器不表示并行，真实先后以边文字和下方触发矩阵为准。启动/保存/开机是“先重排再应用”，闹钟是“先应用再重排”。删除路径必须等重排结束后才完成，但不调用 applyCurrentNow；亮屏只补偿 LOCK，不能替代系统闹钟。</figcaption>
+        <details class="relation-index">
+          <summary>静态边索引（19 条）</summary>
+          <ol class="edge-model">
+            <li data-from="entry-app-launch" data-to="entry-reschedule" data-label="启动排程" data-kind="control" data-route="left"><span class="edge-key">entry-app-launch → entry-reschedule</span>：Activity 启动确保下一次闹钟存在。</li>
+            <li data-from="entry-app-launch" data-to="entry-apply-both" data-label="随后应用双域" data-kind="control" data-route="right"><span class="edge-key">entry-app-launch → entry-apply-both</span>：Activity 在重排调用之后立即应用当前规则。</li>
+            <li data-from="entry-rule-saved" data-to="entry-reschedule" data-label="规则已改变" data-kind="control" data-route="left"><span class="edge-key">entry-rule-saved → entry-reschedule</span>：保存完成后重排。</li>
+            <li data-from="entry-rule-saved" data-to="entry-apply-both" data-label="随后真实应用" data-kind="control" data-route="right"><span class="edge-key">entry-rule-saved → entry-apply-both</span>：保存链在重排调用之后真实设置当前两个域，不是预览。</li>
+            <li data-from="entry-rule-deleted" data-to="entry-delete-effects" data-label="确认后执行" data-kind="side-effect" data-route="left"><span class="edge-key">entry-rule-deleted → entry-delete-effects</span>：删除确认后写库并处理 URI。</li>
+            <li data-from="entry-delete-effects" data-to="entry-reschedule" data-label="删除后重排" data-kind="control"><span class="edge-key">entry-delete-effects → entry-reschedule</span>：规则集合改变后更新下一次闹钟。</li>
+            <li data-from="entry-manual-apply" data-to="entry-apply-both" data-label="不重排" data-kind="control" data-route="right"><span class="edge-key">entry-manual-apply → entry-apply-both</span>：手动操作真实应用当前双域。</li>
+            <li data-from="entry-boot-update" data-to="entry-reschedule" data-label="恢复闹钟" data-kind="control" data-route="left"><span class="edge-key">entry-boot-update → entry-reschedule</span>：开机或包更新后 AlarmManager 状态需要恢复。</li>
+            <li data-from="entry-boot-update" data-to="entry-apply-both" data-label="随后恢复壁纸" data-kind="control" data-route="right"><span class="edge-key">entry-boot-update → entry-apply-both</span>：接收器在重排调用之后立即应用当前规则。</li>
+            <li data-from="entry-exact-granted" data-to="entry-exact-check" data-label="先复查能力" data-kind="control"><span class="edge-key">entry-exact-granted → entry-exact-check</span>：授权广播不会直接无条件重排。</li>
+            <li data-from="entry-exact-check" data-to="entry-ignore-broadcast" data-label="否" data-kind="failure"><span class="edge-key">entry-exact-check → entry-ignore-broadcast</span>：能力仍不可用时安全返回。</li>
+            <li data-from="entry-exact-check" data-to="entry-reschedule" data-label="是" data-kind="control"><span class="edge-key">entry-exact-check → entry-reschedule</span>：能力获批后用精确 API 替换原降级闹钟。</li>
+            <li data-from="entry-alarm-fired" data-to="entry-apply-both" data-label="先应用" data-kind="control" data-route="right"><span class="edge-key">entry-alarm-fired → entry-apply-both</span>：到点接收器先处理当前规则。</li>
+            <li data-from="entry-alarm-fired" data-to="entry-reschedule" data-label="再排下一次" data-kind="loop" data-route="left"><span class="edge-key">entry-alarm-fired → entry-reschedule</span>：同一接收器随后维持调度闭环。</li>
+            <li data-from="entry-screen-on" data-to="entry-apply-lock" data-label="仅 LOCK" data-kind="control" data-route="right"><span class="edge-key">entry-screen-on → entry-apply-lock</span>：亮屏动态 Receiver 只做锁屏补偿。</li>
+            <li data-from="entry-reschedule" data-to="entry-finish" data-label="排程路径完成" data-kind="control"><span class="edge-key">entry-reschedule → entry-finish</span>：只要求排程的入口可以结束。</li>
+            <li data-from="entry-apply-both" data-to="entry-finish" data-label="双域处理完成" data-kind="control"><span class="edge-key">entry-apply-both → entry-finish</span>：两个域尝试结束后入口返回。</li>
+            <li data-from="entry-apply-lock" data-to="entry-finish" data-label="LOCK 处理完成" data-kind="control"><span class="edge-key">entry-apply-lock → entry-finish</span>：亮屏补偿结束。</li>
+            <li data-from="entry-ignore-broadcast" data-to="entry-finish" data-label="无副作用" data-kind="control"><span class="edge-key">entry-ignore-broadcast → entry-finish</span>：忽略路径仍正常 finish PendingResult。</li>
+          </ol>
+        </details>
+      </figure>
+      <aside class="callout"><strong>为什么图中没有首页 onResume：</strong>它不是独立系统 Receiver。首页恢复前台时会刷新当前规则、精确能力和电池白名单；只有精确能力从 ViewModel 记录的 false 变为 true 时才重排，true 变 false 不会立即替换既有闹钟。</aside>
+    </section>
+
+    <section id="trigger-matrix" class="content-section">
+      <h2>触发矩阵</h2>
+      <div class="table-wrap">
+        <table id="table-trigger-matrix" data-table-kind="trigger-matrix">
+          <thead><tr><th>入口</th><th>重排</th><th>应用 LOCK</th><th>应用 SYSTEM</th><th>其它副作用/检查</th></tr></thead>
+          <tbody>
+            <tr id="trigger-main-create" data-state="foreground-entry"><td>MainActivity.onCreate</td><td>是，先执行</td><td>随后</td><td>随后</td><td>构建 Compose 导航</td></tr>
+            <tr id="trigger-rule-save" data-state="rule-write"><td>规则保存</td><td>写库后先执行</td><td>随后</td><td>随后</td><td>写库；按需释放旧 URI</td></tr>
+            <tr id="trigger-rule-delete" data-state="rule-delete"><td>规则删除</td><td>是</td><td>否</td><td>否</td><td>删库；按需释放 URI；重算 UI</td></tr>
+            <tr id="trigger-manual-apply" data-state="manual-apply"><td>首页立即应用</td><td>否</td><td>是</td><td>是</td><td>不修改规则；真实设置壁纸</td></tr>
+            <tr id="trigger-alarm" data-state="scheduled-event"><td>闹钟到点</td><td>是，在应用后</td><td>是</td><td>是</td><td>goAsync + IO</td></tr>
+            <tr id="trigger-boot-update" data-state="system-recovery"><td>开机 / 包更新</td><td>是，先执行</td><td>随后</td><td>随后</td><td>goAsync + IO</td></tr>
+            <tr id="trigger-exact-grant" data-state="permission-recovery"><td>精确能力获批</td><td>能力复查成功才是</td><td>否</td><td>否</td><td>把降级闹钟替换为精确闹钟</td></tr>
+            <tr id="trigger-screen-on" data-state="process-local-compensation"><td>亮屏</td><td>否</td><td>是</td><td>否</td><td>仅进程存活时动态接收</td></tr>
+            <tr id="trigger-home-resume" data-state="ui-refresh"><td>首页 onResume</td><td>新检测到精确授权时是</td><td>否</td><td>否</td><td>刷新权限状态和当前规则展示</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="failure-semantics" class="content-section">
+      <h2>如何解释“跳过、失败和完成”？</h2>
+      <div class="table-wrap">
+        <table id="table-failure-semantics" data-table-kind="outcome-semantics">
+          <thead><tr><th>结果</th><th>含义</th><th>是否改壁纸</th><th>是否影响下一域/下一次排程</th></tr></thead>
+          <tbody>
+            <tr id="outcome-no-rule" data-state="normal-no-op"><td>无命中规则</td><td>正常空档，保持已有壁纸</td><td>否</td><td>不阻止另一域；闹钟流程仍会重排</td></tr>
+            <tr id="outcome-no-uri" data-state="defensive-no-op"><td>命中规则无 URI</td><td>兼容 schema 可空的防御性跳过</td><td>否</td><td>不阻止另一域</td></tr>
+            <tr id="outcome-backoff" data-state="temporary-no-op"><td>LOCK 退避中</td><td>避免每次亮屏重复调用已失败的厂商实现</td><td>否</td><td>30 分钟后或进程重启后可再试</td></tr>
+            <tr id="outcome-decode-failed" data-state="io-failure"><td>图片解码失败</td><td>URI 不可读、格式问题或 decode 返回 null</td><td>否</td><td>记录日志；另一域继续</td></tr>
+            <tr id="outcome-system-rejected" data-state="external-failure"><td>WallpaperManager 失败</td><td>系统/厂商拒绝或抛异常</td><td>未成功</td><td>LOCK 设置退避；SYSTEM 只记录；另一域继续</td></tr>
+            <tr id="outcome-partial-save" data-state="partial-success"><td>保存链后半段异常</td><td>可能已经写库或重排，但 UI 仍提示“保存失败”；没有跨步骤回滚</td><td>取决于失败步骤</td><td>重新进入页面应以 Room 实际数据为准</td></tr>
+            <tr id="outcome-schedule-exception" data-state="no-alarm-risk"><td>重排异常</td><td>旧固定闹钟已经先取消，读库或注册失败时可能暂时没有下一次闹钟</td><td>否</td><td>等待下一个重排入口；当前没有自动重试</td></tr>
+            <tr id="outcome-alarm-handler-exception" data-state="loop-interrupted"><td>闹钟处理意外抛异常</td><td>applyCurrentNow 若向外抛出，后面的 rescheduleNext 不保证执行</td><td>可能部分完成</td><td>调度闭环可能中断，需靠其它入口恢复</td></tr>
+            <tr id="outcome-receiver-finished" data-state="process-complete"><td>Receiver 正常 finish</td><td>异步处理生命周期结束</td><td>不代表成功</td><td>业务结果必须看各域日志</td></tr>
+            <tr id="outcome-force-stop" data-state="external-stop"><td>用户强制停止</td><td>系统阻断闹钟和广播</td><td>否</td><td>无法自动恢复，必须重新打开应用</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <aside class="callout"><strong>时间恢复缺口：</strong>当前没有 <code>TIME_SET</code>、<code>TIMEZONE_CHANGED</code> 或日期变化入口。用户手动改钟、跨时区或遇到夏令时后，要等启动、保存、删除、授权变化或既有闹钟等其它入口重排；细节见<a href="架构文档.html#limitations">架构限制表</a>。</aside>
+    </section>
+
+    <section id="verification" class="content-section">
+      <h2>修改流程后怎样验证？</h2>
+      <div class="contract-grid">
+        <article class="contract-card"><strong>纯逻辑</strong><p>运行 19 个 JVM 测试，重点覆盖 resolve 边界、分域、startMinutes、范围与 24:00 解析。</p></article>
+        <article class="contract-card"><strong>静态与构建</strong><p>运行 <code>:app:lintDebug :app:assembleDebug</code>，并检查 Manifest Receiver 与权限。</p></article>
+        <article class="contract-card"><strong>调度真机</strong><p>验证相邻规则交接、空档保持、授权前后、重启、覆盖安装与强停后重开。</p></article>
+        <article class="contract-card"><strong>壁纸真机</strong><p>分别验证 LOCK/SYSTEM、同时间跨域、URI 替换/删除，以及受限 ROM 的锁屏失败恢复。</p></article>
+      </div>
+      <aside class="callout"><strong>第三方修改原则：</strong>新增任何规则写入口，都必须同时维护范围、同域冲突、URI 授权、重排和即时应用语义；新增任何系统触发入口，都应优先复用 AppContainer/AlarmScheduler，而不是复制 resolve 或 WallpaperManager 调用。</aside>
+    </section>
+  </main>
+
+  <footer class="page-footer">Screensaver 当前实现的正式应用流程事实源</footer>
+  <script src="assets/dom-diagrams.js" defer></script>
+</body>
+</html>

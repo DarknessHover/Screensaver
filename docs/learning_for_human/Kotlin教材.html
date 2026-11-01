@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kotlin 技术全景与实战复盘 · 图文教材（超集版）</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#161c2c; --panel2:#1d2638; --line:#2c3650;
+    --text:#e6ebf5; --muted:#9aa7c0; --accent:#7c9cff; --accent2:#34d399;
+    --amber:#f5b942; --purple:#a78bfa; --red:#ef4444;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f5f7fb; --panel:#ffffff; --panel2:#eef2f9; --line:#d8dee9;
+      --text:#1a2233; --muted:#5b6b85; --accent:#3b6fe0; --accent2:#0f9d58;
+      --amber:#c47a00; --purple:#7c3aed; --red:#b91c1c; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;line-height:1.7}
+  .wrap{max-width:1240px;margin:0 auto;padding:32px 22px 64px}
+  header.hero{padding:40px 0 28px;border-bottom:1px solid var(--line);margin-bottom:28px}
+  header.hero h1{font-size:30px;margin:0 0 8px}
+  header.hero p{color:var(--muted);margin:6px 0 0;font-size:15px}
+  .tag{display:inline-block;background:var(--panel2);border:1px solid var(--line);color:var(--accent);padding:3px 10px;border-radius:999px;font-size:12px;margin-right:8px}
+  section{margin:34px 0;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px}
+  h2{font-size:22px;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+  h2 .num{background:var(--accent);color:#0f1420;border-radius:8px;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;font-size:15px;font-weight:700}
+  h3{margin:22px 0 10px;font-size:17px;color:var(--accent2)}
+  h4{margin:16px 0 8px;font-size:15px;color:var(--amber)}
+  p{margin:10px 0}
+  ul li,ol li{margin:6px 0}
+  .muted{color:var(--muted)}
+  code{background:var(--panel2);padding:2px 7px;border-radius:6px;font-family:"JetBrains Mono",Consolas,monospace;font-size:13px}
+  pre{background:#0b0f18;border:1px solid var(--line);border-radius:12px;padding:16px;overflow-x:auto;color:#cdd6e8;font-family:"JetBrains Mono",Consolas,monospace;font-size:13px;line-height:1.6}
+  pre .kw{color:#ff9d6c} pre .fn{color:#7c9cff} pre .cm{color:#6b7689} pre .st{color:#7ee0a8} pre .ty{color:#a78bfa}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--muted)}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0}
+  .grid{display:grid;gap:14px} .grid.c2{grid-template-columns:1fr 1fr}
+  .grid.c3{grid-template-columns:repeat(3,1fr)} .grid.c4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:780px){.grid.c2,.grid.c3,.grid.c4{grid-template-columns:1fr}}
+  .pill{display:inline-block;padding:2px 9px;border-radius:8px;font-size:12px;font-weight:600}
+  .pill.red{background:rgba(239,68,68,.15);color:#ff8585}
+  .pill.green{background:rgba(52,211,153,.15);color:#5be3a6}
+  .pill.amber{background:rgba(245,185,66,.15);color:#f5c46b}
+  .pill.purple{background:rgba(167,139,250,.15);color:#c4b1ff}
+  svg{display:block;width:100%;height:auto;background:var(--panel2);border-radius:12px;border:1px solid var(--line)}
+  .note{font-size:12px;color:var(--muted);margin-top:6px}
+  .refs{font-size:13px;color:var(--muted)} .refs a{color:var(--accent)}
+  .summary{background:linear-gradient(135deg,#1b2540,#202c4a);border:1px solid var(--line);border-radius:14px;padding:18px;color:#dfe7f7}
+  /* === 侧边栏布局 === */
+  .layout{display:flex;gap:24px;align-items:flex-start}
+  .sidebar{position:sticky;top:24px;width:220px;flex-shrink:0;max-height:calc(100vh - 48px);overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 14px;font-size:13px}
+  .sidebar h4{margin:0 0 10px;font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+  .sidebar ol{list-style:none;margin:0;padding:0}
+  .sidebar li{margin:0}
+  .sidebar a{display:flex;gap:8px;padding:7px 10px;border-radius:8px;color:var(--muted);text-decoration:none;line-height:1.4;border-left:3px solid transparent;transition:all .15s}
+  .sidebar a:hover{background:var(--panel2);color:var(--text)}
+  .sidebar a.active{background:var(--panel2);color:var(--accent);border-left-color:var(--accent);font-weight:600}
+  .sidebar a .n{font-variant-numeric:tabular-nums;color:var(--muted);min-width:22px}
+  .sidebar a.active .n{color:var(--accent)}
+  .main{flex:1;min-width:0}
+  @media(max-width:1000px){
+    .layout{flex-direction:column}
+    .sidebar{position:static;width:100%;max-height:none}
+  }
+  section{scroll-margin-top:16px}
+  .badge{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-size:11px;color:var(--muted);margin-right:6px}
+  .emphasis{color:var(--amber);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div><span class="tag">Kotlin 科普</span><span class="tag">Android · 后端 · 多平台</span><span class="tag">2026.2.4 现状</span><span class="tag">官方文档核实</span></div>
+  <h1>Kotlin 技术全景与实战复盘</h1>
+  <p>面向「已会 Java、正在选型 / 复盘」的开发者与团队负责人的图文教材 · 内容为原始 Q&amp;A 素材的<b>超集</b>，并已交叉核实 2026 年 8 月最新官方资料</p>
+</header>
+
+<div class="layout">
+<aside class="sidebar">
+  <h4>目录 · Sidebar</h4>
+  <ol>
+    <li><a href="#sec-0"><span class="n">0</span>名字与读音</a></li>
+    <li><a href="#sec-1"><span class="n">1</span>Kotlin 是什么 + 设计理念</a></li>
+    <li><a href="#sec-2"><span class="n">2</span>8 个核心语言特性</a></li>
+    <li><a href="#sec-3"><span class="n">3</span>Kotlin vs Java 全面对比</a></li>
+    <li><a href="#sec-4"><span class="n">4</span>Kotlin Multiplatform 跨平台</a></li>
+    <li><a href="#sec-5"><span class="n">5</span>编译器与 IDE（不绑 Android Studio）</a></li>
+    <li><a href="#sec-6"><span class="n">6</span>演化时间线 2011→2026</a></li>
+    <li><a href="#sec-7"><span class="n">7</span>Kotlin 2.x 演进（K2/2.1/2.2/2.3/2.4）</a></li>
+    <li><a href="#sec-8"><span class="n">8</span>应用场景</a></li>
+    <li><a href="#sec-9"><span class="n">9</span>生态与工具链</a></li>
+    <li><a href="#sec-10"><span class="n">10</span>为什么印象是 Android</a></li>
+    <li><a href="#sec-11"><span class="n">11</span>后端可行性 + 生产案例</a></li>
+    <li><a href="#sec-12"><span class="n">12</span>本项目架构对比</a></li>
+    <li><a href="#sec-13"><span class="n">13</span>团队落地三阶段</a></li>
+    <li><a href="#sec-14"><span class="n">14</span>学习路径建议</a></li>
+    <li><a href="#sec-refs"><span class="n">•</span>参考资料</a></li>
+  </ol>
+</aside>
+<main class="main">
+
+<!-- 0 -->
+<section id="sec-0">
+  <h2><span class="num">0</span>名字与读音</h2>
+  <p><b>Kotlin</b> 读作 <code>/ˈkɒt.lɪn/</code>，中文常写作 <b>「科特-林」</b>（重音在第一音节）。它得名于<b>芬兰湾的科特林岛（Kotlin Island）</b>——靠近圣彼得堡。这与 Java 得名于印度尼西亚爪哇岛是同一种「以岛屿命名语言」的趣味传统，<b>与地理归属无直接关系</b>（JetBrains 总部在捷克布拉格）。</p>
+  <p class="muted">常见误读：「ko-TLIN」（把重音放第二音节）是不正确的。</p>
+</section>
+
+<!-- 1 -->
+<section id="sec-1">
+  <h2><span class="num">1</span>Kotlin 是什么？设计理念</h2>
+  <p>Kotlin 是 <b>JetBrains</b>（IntelliJ IDEA 的开发商）于 2011 年启动、2016 年发布 1.0 的<b>静态类型通用语言</b>。它编译为 <b>JVM 字节码</b>，与 Java 100% 互操作；其设计目标不是取代 Java，而是「<b>务实地把 Java 三十年生态换一身更现代的外壳</b>」。</p>
+  <h3>五大设计理念</h3>
+  <div class="grid c3">
+    <div class="card"><h3>简洁 Conciseness</h3><p class="muted">用更少代码表达更多意图；<code>data class</code> / 类型推断 / 扩展函数让样板代码大幅减少。</p></div>
+    <div class="card"><h3>安全 Safety</h3><p class="muted">类型系统在编译期拦截 NPE、Smart Casts、协程结构化并发——从「试错」前移到「编译」。</p></div>
+    <div class="card"><h3>互操作 Interoperability</h3><p class="muted">与 Java 100% 双向兼容：同模块、同调用链可混用，可逐文件迁移。</p></div>
+    <div class="card"><h3>跨平台 Multiplatform</h3><p class="muted">一套核心代码可编译到 JVM、JS、Native（iOS/桌面/嵌入式）、Wasm。</p></div>
+    <div class="card"><h3>工具友好 Tool-friendly</h3><p class="muted">JetBrains 自家出品，IntelliJ IDEA / Android Studio 原生支持 K2 编译分析与重构。</p></div>
+    <div class="card"><h3>原则：务实 ≠ 学术</h3><p class="muted">不像 Haskell/Scala 追求学术优雅，Kotlin 每一个特性都对应「开发者会遇到的真实痛点」。</p></div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section id="sec-2">
+  <h2><span class="num">2</span>核心语言特性详解（8 个）</h2>
+  <div class="grid c2">
+    <div class="card">
+      <h3>① 空安全（Null Safety）</h3>
+      <p>类型默认不可空，把「十亿美元错误」拦截在编译期。</p>
+      <pre><span class="kw">var</span> name: String  = <span class="st">"Kotlin"</span>   <span class="cm">// 不可空</span>
+<span class="kw">var</span> nick: String? = <span class="kw">null</span>        <span class="cm">// 可空</span>
+<span class="kw">val</span> len = nick?.length ?: <span class="st">0</span>       <span class="cm">// 安全调用 + Elvis</span></pre>
+    </div>
+    <div class="card">
+      <h3>② 简洁语法</h3>
+      <p>val/var 替代类型前缀；data class 替代几十行样板。</p>
+      <pre><span class="kw">val</span> name = <span class="st">"Kotlin"</span>           <span class="cm">// 类型推断</span>
+<span class="kw">fun</span> sum(a: Int, b: Int) = a + b   <span class="cm">// 单表达式</span>
+<span class="kw">data class</span> User(<span class="kw">val</span> id: Int, <span class="kw">val</span> name: String)
+println(<span class="st">"Hello, $name! Sum = ${sum(1,2)}"</span>)</pre>
+    </div>
+    <div class="card">
+      <h3>③ 扩展函数（Extension Functions）</h3>
+      <p>无需继承即可为已有类添加方法，告别 <code>XxxUtils</code>。</p>
+      <pre><span class="kw">fun</span> <span class="ty">String</span>.lastChar(): <span class="ty">Char</span> = this[length - 1]
+println(<span class="st">"Kotlin"</span>.lastChar())  <span class="cm">// 'n'</span>
+
+<span class="cm">// 还能扩展属性</span>
+<span class="kw">val</span> <span class="ty">String</span>.wordCount: <span class="ty">Int</span>
+    <span class="kw">get</span>() = split(<span class="st">" "</span>).size</pre>
+    </div>
+    <div class="card">
+      <h3>④ 高阶函数与 Lambda</h3>
+      <p>函数是一等公民，<code>let / run / apply / also</code> 形成流畅的链式调用。</p>
+      <pre><span class="kw">val</span> nums = listOf(1, 2, 3, 4, 5)
+<span class="kw">val</span> doubled = nums.map { it * 2 }       <span class="cm">// [2,4,6,8,10]</span>
+<span class="kw">val</span> evens   = nums.filter { it % 2 == 0 } <span class="cm">// [2,4]</span>
+<span class="kw">val</span> sum     = nums.reduce { acc, n -> acc + n } <span class="cm">// 15</span>
+
+<span class="cm">// apply：构造 + 配置</span>
+<span class="kw">val</span> s = StringBuilder().apply {
+    append(<span class="st">"a"</span>); append(<span class="st">"b"</span>)
+}.toString()</pre>
+    </div>
+    <div class="card">
+      <h3>⑤ 协程（Coroutines）</h3>
+      <p>以挂起函数为核心，让异步代码像同步代码一样直观，底层极轻量。</p>
+      <pre><span class="kw">suspend fun</span> fetch(): <span class="ty">String</span> {
+    delay(1000)              <span class="cm">// 挂起，不阻塞线程</span>
+    <span class="kw">return</span> <span class="st">"data"</span>
+}
+CoroutineScope(Dispatchers.IO).launch {
+    <span class="kw">val</span> d = fetch()        <span class="cm">// 像同步代码一样写</span>
+    println(d)
+}</pre>
+    </div>
+    <div class="card">
+      <h3>⑥ 智能类型转换（Smart Casts）</h3>
+      <p>编译器在 <code>is</code> 判定后自动识别类型，无需手动强转。</p>
+      <pre><span class="kw">fun</span> describe(obj: <span class="ty">Any</span>): <span class="ty">String</span> {
+    <span class="kw">if</span> (obj <span class="kw">is</span> String) {
+        <span class="cm">// 此分支 obj 已被智能转为 String</span>
+        <span class="kw">return</span> <span class="st">"字符串，长度 ${obj.length}"</span>
+    }
+    <span class="kw">return</span> <span class="st">"非字符串"</span>
+}
+
+<span class="cm">// K2 起：在 if 外声明的变量也能在 if 内被 smart cast</span></pre>
+    </div>
+    <div class="card">
+      <h3>⑦ 密封类 / 数据类 / 枚举</h3>
+      <p>sealed class 建模受限类型层次（ADT），data class 自动生成 <code>equals/hashCode/toString/copy</code>。</p>
+      <pre><span class="kw">sealed class</span> RuleState {
+    <span class="kw">data class</span> Active(<span class="kw">val</span> id: <span class="ty">Int</span>, <span class="kw">val</span> name: <span class="ty">String</span>) : RuleState()
+    <span class="kw">data class</span> Idle(<span class="kw">val</span> since: <span class="ty">Long</span>) : RuleState()
+}
+<span class="kw">val</span> label = <span class="kw">when</span> (<span class="kw">val</span> s = state) {
+    <span class="kw">is</span> RuleState.Active -> <span class="st">"运行 ${s.name}"</span>
+    <span class="kw">is</span> RuleState.Idle   -> <span class="st">"空闲"</span>
+}</pre>
+    </div>
+    <div class="card">
+      <h3>⑧ 委托与属性委托</h3>
+      <p>用 <code>by</code> 实现「组合优于继承」：延迟初始化、可观察属性、Map 委托等。</p>
+      <pre><span class="cm">// 属性委托：延迟初始化</span>
+<span class="kw">val</span> expensive: <span class="ty">String</span> <span class="kw">by</span> lazy { computeExpensiveValue() }
+
+<span class="cm">// 类委托：不修改源码就扩展行为</span>
+<span class="kw">class</span> MyList&lt;T&gt;(<span class="kw">val</span> inner: <span class="ty">MutableList</span>&lt;T&gt;) : <span class="ty">MutableList</span>&lt;T&gt; <span class="kw">by</span> inner
+
+<span class="cm">// Map 委托：把对象当 JSON-like 容器</span>
+<span class="kw">class</span> User(<span class="kw">val</span> map: <span class="ty">Map</span>&lt;String, Any?&gt;) {
+    <span class="kw">val</span> name: <span class="ty">String</span> <span class="kw">by</span> map
+    <span class="kw">val</span> age:  <span class="ty">Int</span>    <span class="kw">by</span> map
+}</pre>
+    </div>
+  </div>
+  <p class="muted">这些特性加在一起，通常可以让 Java → Kotlin 的代码量<b>减少 50% 以上</b>。</p>
+</section>
+
+<!-- 3 -->
+<section id="sec-3">
+  <h2><span class="num">3</span>Kotlin vs Java：全面对比</h2>
+  <p>两者编译为同一 JVM 字节码，可在同一项目、同一调用链无缝混用。下表为<b>纯语言设计层面</b>的对照：</p>
+  <table>
+    <tr><th>维度</th><th>Kotlin</th><th>Java</th><th>说明</th></tr>
+    <tr><td>空安全</td><td><span class="pill green">9</span></td><td><span class="pill red">5</span></td><td>编译期拦截 vs 运行时 NPE</td></tr>
+    <tr><td>简洁性</td><td><span class="pill green">9</span></td><td><span class="pill red">5</span></td><td>data class / 扩展函数大幅减码</td></tr>
+    <tr><td>并发模型</td><td><span class="pill green">9</span></td><td><span class="pill amber">6</span></td><td>协程 vs 线程/虚拟线程</td></tr>
+    <tr><td>表达力</td><td><span class="pill green">9</span></td><td><span class="pill amber">6</span></td><td>高阶函数 + 标准库</td></tr>
+    <tr><td>学习曲线友好度</td><td><span class="pill green">8</span></td><td><span class="pill green">7</span></td><td>Java 经验可平滑迁移</td></tr>
+    <tr><td>性能语义直观性</td><td><span class="pill amber">7</span></td><td><span class="pill green">9</span></td><td>原始类型 vs 包装类型的心智成本</td></tr>
+    <tr><td>语言稳定性 / 向后兼容</td><td><span class="pill amber">7</span></td><td><span class="pill green">9</span></td><td>Java 30 年兼容近乎偏执</td></tr>
+    <tr><td>Checked Exceptions</td><td><span class="pill amber">弱</span></td><td><span class="pill green">强制</span></td><td>Kotlin 折中简洁，Java 折中显式</td></tr>
+    <tr><td>模式匹配成熟度</td><td><span class="pill amber">8</span></td><td><span class="pill green">8</span></td><td>Java 21+ 正在快速追赶</td></tr>
+    <tr><td>生态成熟度</td><td><span class="pill amber">7</span></td><td><span class="pill green">10</span></td><td>Java 30 年沉淀仍是体量最大</td></tr>
+  </table>
+
+  <h3>Java 仍有独到之处</h3>
+  <div class="grid c2">
+    <div class="card"><h3>向后兼容</h3><p>20 多年前的 Java 代码今天几乎原样可编译运行；Kotlin 演进更快（如 K2 迁移带来一些适配成本）。</p></div>
+    <div class="card"><h3>原始类型性能语义</h3><p>原始类型直接栈上分配、无对象头、无 GC 压力；Valhalla 项目将进一步强化值类型。</p></div>
+    <div class="card"><h3>泛型擦除的「透明性」</h3><p>Java 泛型运行时行为完全可预测，没有 Kotlin <code>reified</code> + inline 的额外约束。</p></div>
+    <div class="card"><h3>Checked Exceptions</h3><p>强制让错误处理成为接口契约的一部分；虽然易被空 catch 滥用，但设计意图明确。</p></div>
+    <div class="card"><h3>模式匹配</h3><p>Java 21+ 的 switch 表达式 + Record Patterns 在某些组合性上正在追赶甚至超越。</p></div>
+    <div class="card"><h3>招聘/存量惯性</h3><p>千万行存量 Java、JD 写「Java」、合规审批更快；这是生态壁垒，不是技术问题。</p></div>
+  </div>
+  <p class="muted">结论：Kotlin 更「现代、优雅」，但 Java 的「保守」本身就是大型系统的护城河。两者<b>不是对立，而是互补</b>。</p>
+</section>
+
+<!-- 4 -->
+<section id="sec-4">
+  <h2><span class="num">4</span>Kotlin Multiplatform：跨平台不只是口号</h2>
+  <p>Kotlin 的<b>战略优势</b>是跨平台：通过 Kotlin Multiplatform（KMP），一套核心代码可在多个平台间共享业务逻辑：</p>
+  <svg viewBox="0 0 680 230" role="img" aria-label="Kotlin Multiplatform 四个目标">
+    <defs>
+      <marker id="kmpArrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#7c9cff"/></marker>
+    </defs>
+    <rect x="240" y="20" width="200" height="46" rx="10" fill="#2a3a5c" stroke="#7c9cff" stroke-width="2"/>
+    <text x="340" y="50" fill="#e6ebf5" font-size="14" text-anchor="middle" font-weight="700">一套 Kotlin 核心代码</text>
+
+    <line x1="340" y1="66" x2="340" y2="100" stroke="#7c9cff" stroke-width="2" marker-end="url(#kmpArrow)"/>
+
+    <g>
+      <rect x="40"  y="110" width="130" height="60" rx="10" fill="#1d2638" stroke="#34d399"/>
+      <text x="105" y="135" fill="#e6ebf5" font-size="13" text-anchor="middle" font-weight="700">Kotlin/JVM</text>
+      <text x="105" y="155" fill="#9aa7c0" font-size="11" text-anchor="middle">Android · 后端</text>
+    </g>
+    <g>
+      <rect x="200" y="110" width="130" height="60" rx="10" fill="#1d2638" stroke="#34d399"/>
+      <text x="265" y="135" fill="#e6ebf5" font-size="13" text-anchor="middle" font-weight="700">Kotlin/JS</text>
+      <text x="265" y="155" fill="#9aa7c0" font-size="11" text-anchor="middle">Web 前端</text>
+    </g>
+    <g>
+      <rect x="360" y="110" width="130" height="60" rx="10" fill="#1d2638" stroke="#34d399"/>
+      <text x="425" y="135" fill="#e6ebf5" font-size="13" text-anchor="middle" font-weight="700">Kotlin/Native</text>
+      <text x="425" y="155" fill="#9aa7c0" font-size="11" text-anchor="middle">iOS · macOS · 桌面</text>
+    </g>
+    <g>
+      <rect x="520" y="110" width="130" height="60" rx="10" fill="#1d2638" stroke="#34d399"/>
+      <text x="585" y="135" fill="#e6ebf5" font-size="13" text-anchor="middle" font-weight="700">Kotlin/Wasm</text>
+      <text x="585" y="155" fill="#9aa7c0" font-size="11" text-anchor="middle">高性能 Web / FaaS</text>
+    </g>
+
+    <text x="340" y="200" fill="#9aa7c0" font-size="11" text-anchor="middle">共享业务逻辑（网络、状态机、数据模型），各平台保留原生 UI</text>
+  </svg>
+
+  <h3>Compose Multiplatform</h3>
+  <p>JetBrains 推出的 <b>Compose Multiplatform</b> 把声明式 UI 能力扩展到 Android 之外：iOS、Desktop、Web 都可共享 UI 代码。2.4 起 Swift 互操作进入 <b>Alpha</b>——<code>suspend</code> 函数可被 Swift 当作 <code>async</code> 调用，<code>Flow</code> 可被 Swift 当作 <code>AsyncSequence</code>。</p>
+  <p class="muted">2026 年 6 月，社区还推出了 KMP&amp;CMP for OpenHarmony 框架 Beta，把 Kotlin 跨平台能力引入了鸿蒙生态。</p>
+</section>
+
+<!-- 5 -->
+<section id="sec-5">
+  <h2><span class="num">5</span>编译器与 IDE：从不绑定 Android Studio</h2>
+  <p>Kotlin 是<b>通用</b>语言，编译器和 IDE 都不绑死 Android Studio。</p>
+  <h3>独立编译器 kotlinc</h3>
+  <pre><span class="cm"># 三种方式：手动下载 / SDKMAN / Homebrew / Snap</span>
+sdk install kotlin
+kotlinc hello.kt -include-runtime -d hello.jar   <span class="cm"># 编译</span>
+java -jar hello.jar                              <span class="cm"># 跑</span></pre>
+  <p class="muted">当前最新稳定版：<b>Kotlin 2.4.10</b>（截至 2026 年 8 月，命令页 <code>Last modified: 14 July 2026</code>）。</p>
+  <h3>IDE 全家桶</h3>
+  <div class="grid c4">
+    <div class="card"><h3>IntelliJ IDEA</h3><p class="muted">JetBrains 原生，K2 Kotlin 模式（IntelliJ 2025.1+）使用 K2 分析。</p></div>
+    <div class="card"><h3>Android Studio</h3><p class="muted">基于 IntelliJ，安卓向。</p></div>
+    <div class="card"><h3>VS Code</h3><p class="muted">官方 Kotlin 插件；2025.2.2 起 KMP 插件支持 Windows / Linux。</p></div>
+    <div class="card"><h3>Eclipse</h3><p class="muted">社区插件，能力较弱。</p></div>
+  </div>
+</section>
+
+<!-- 6 -->
+<section id="sec-6">
+  <h2><span class="num">6</span>演化时间线 2011 → 2026</h2>
+  <svg viewBox="0 0 680 170" role="img" aria-label="Kotlin 演化时间线">
+    <line x1="30" y1="85" x2="650" y2="85" stroke="#2c3650" stroke-width="3"/>
+    <g font-size="13" fill="#e6ebf5" text-anchor="middle">
+      <g><circle cx="50"  cy="85" r="8" fill="#7c9cff"/><text x="50"  y="65">2011</text><text x="50"  y="110" font-size="11" fill="#9aa7c0">JetBrains 立项</text></g>
+      <g><circle cx="135" cy="85" r="8" fill="#7c9cff"/><text x="135" y="65">2016</text><text x="135" y="110" font-size="11" fill="#9aa7c0">1.0 发布</text></g>
+      <g><circle cx="230" cy="85" r="8" fill="#f5b942"/><text x="230" y="65">2017</text><text x="230" y="110" font-size="11" fill="#9aa7c0">Google 一等公民</text></g>
+      <g><circle cx="320" cy="85" r="8" fill="#f5b942"/><text x="320" y="65">2019</text><text x="320" y="110" font-size="11" fill="#9aa7c0">Kotlin First</text></g>
+      <g><circle cx="405" cy="85" r="8" fill="#34d399"/><text x="405" y="65">2024.5</text><text x="405" y="110" font-size="11" fill="#9aa7c0">K2 编译器 / 2.0</text></g>
+      <g><circle cx="485" cy="85" r="8" fill="#34d399"/><text x="485" y="65">2025</text><text x="485" y="110" font-size="11" fill="#9aa7c0">2.2 / 2.3</text></g>
+      <g><circle cx="605" cy="85" r="10" fill="#a78bfa"/><text x="605" y="65" font-weight="700">2026</text><text x="605" y="110" font-size="11" fill="#c4b1ff">2.4 + 跨平台</text></g>
+    </g>
+  </svg>
+</section>
+
+<!-- 7 -->
+<section id="sec-7">
+  <h2><span class="num">7</span>Kotlin 2.x 演进（K2 + 2.1 / 2.2 / 2.3 / 2.4）</h2>
+  <h3>K2 编译器（Kotlin 2.0，2024）</h3>
+  <p>官方在 Anki-Android / Exposed 两个开源项目实测：</p>
+  <svg viewBox="0 0 680 150" role="img" aria-label="K2 编译速度对比">
+    <text x="20" y="30" fill="#e6ebf5" font-size="13">干净构建耗时（秒，越低越好）</text>
+    <rect x="40" y="50" width="200" height="22" fill="#5b6b85"/><text x="250" y="66" fill="#9aa7c0" font-size="12">1.9.23：57.7s</text>
+    <rect x="40" y="85" width="103" height="22" fill="#34d399"/><text x="150" y="101" fill="#0f1420" font-size="12">2.0：29.7s</text>
+    <text x="300" y="66" fill="#e6ebf5" font-size="12">K2 编译速度最高提升 <tspan font-weight="700" fill="#5be3a6">94%</tspan>（Anki-Android 干净构建）</text>
+    <text x="300" y="86" fill="#e6ebf5" font-size="12">初始化阶段最高快 <tspan font-weight="700" fill="#5be3a6">488%</tspan>；分析阶段最高快 <tspan font-weight="700" fill="#5be3a6">376%</tspan></text>
+    <text x="300" y="108" fill="#9aa7c0" font-size="11">来源：JetBrains 官方 K2 性能基准（Anki-Android、Exposed）</text>
+  </svg>
+  <h3>2.1（2024-11）</h3>
+  <p><b>When Guards</b> 等开发者体验改进落地。</p>
+  <h3>2.2（2025-06-23）</h3>
+  <ul>
+    <li><b>Context Parameters（上下文参数）</b>：预览版，<code>context(users: UserService)</code> 替代之前的 Context Receivers。</li>
+    <li><b>Guard conditions</b> 在 <code>when</code> 中稳定；Non-local <code>break/continue</code>、Multi-dollar interpolation 稳定。</li>
+    <li>JVM 接口函数默认编译为 default 方法；Base64 / HexFormat API 稳定。</li>
+  </ul>
+  <h3>2.3（2025-12-16）</h3>
+  <ul>
+    <li><b>显式后备字段（experimental）</b>：<code>field = ...</code> 替代私有 <code>_xxx</code> 命名模式。</li>
+    <li><b>未使用返回值检查器（experimental）</b>：<code>@MustUseReturnValues</code>，通过 <code>-Xreturn-value-checker=check|full</code> 开启。</li>
+    <li>JVM 编译器可生成 <b>Java 25</b> 字节码。</li>
+    <li>Kotlin/Native 发布构建（<code>linkRelease*</code>）最高快 <b>40%</b>（iOS 多平台最明显）。</li>
+    <li>Kotlin/Wasm：Latin-1 字符串以 UTF-8 紧凑存储，体积最多减 <b>13%</b>。</li>
+  </ul>
+  <p class="muted">注：原素材中提到的「2.3 命名解构」未列入官方 2.3 文档，本教材不采纳。</p>
+  <h3>2.4（2026，最新 2.4.10）</h3>
+  <ul>
+    <li><b>Context Parameters 稳定</b>，显式实参 <code>sendNotification(emailSender = ...)</code> 解决重载歧义。</li>
+    <li><b>显式后备字段稳定</b>，<code>@all</code> 元目标稳定。</li>
+    <li><b>Swift 互操作 Alpha</b>：<code>suspend</code> → Swift <code>async</code>，<code>Flow</code> → <code>AsyncSequence</code>；支持 SwiftPM 依赖。</li>
+    <li><b>CMS 垃圾回收器</b>在 Kotlin/Native 默认启用，显著降低 GC 暂停。</li>
+    <li>JVM 支持 <b>Java 26</b> 字节码；Wasm 增量编译稳定；<b>WebAssembly Component Model</b>（实验性）支持 FaaS。</li>
+    <li>标准库：<b>UUID API</b> 稳定（<code>kotlin.uuid.Uuid</code>），新增 <code>.isSorted()</code> / <code>.isSortedBy()</code> 等集合工具。</li>
+    <li>K1 编译器移除（<code>-language-version=1.9</code> 不再支持），强制升级 K2。</li>
+  </ul>
+</section>
+
+<!-- 8 -->
+<section id="sec-8">
+  <h2><span class="num">8</span>应用场景</h2>
+  <div class="grid c2">
+    <div class="card"><h3>Android 开发（核心）</h3><p>Google 官方推荐首选语言。Jetpack Compose、Room、Navigation 等官方库均以 Kotlin 为第一语言。Android Studio 基于 IntelliJ。</p></div>
+    <div class="card"><h3>服务端开发</h3><p>Spring Boot（Spring 5 起一等支持）、Ktor（JetBrains 自家）、Quarkus、Vert.x、Micronaut；协程天然适合 I/O 密集型高并发。</p></div>
+    <div class="card"><h3>跨平台移动开发</h3><p>KMP + Compose Multiplatform 覆盖 Android / iOS / Desktop / Web；2026 鸿蒙 Beta 进一步扩展边界。</p></div>
+    <div class="card"><h3>Web / 边缘</h3><p>Kotlin/JS 写 Web 前端；Kotlin/Wasm（Component Model）瞄向 FaaS / 边缘 / 高性能场景。</p></div>
+  </div>
+</section>
+
+<!-- 9 -->
+<section id="sec-9">
+  <h2><span class="num">9</span>生态与工具链</h2>
+  <div class="grid c2">
+    <div class="card">
+      <h3>IDE</h3>
+      <p><span class="badge">IntelliJ IDEA</span><span class="badge">Android Studio</span><span class="badge">VS Code</span><span class="badge">Eclipse</span></p>
+      <p class="muted">IntelliJ 2025.1 开始使用 K2 模式分析 Kotlin 代码；KMP IDE 插件 2025.2.2 起支持 Windows / Linux。</p>
+    </div>
+    <div class="card">
+      <h3>构建</h3>
+      <p><span class="badge">Gradle（Kotlin DSL）</span><span class="badge">Maven</span><span class="badge">2.4 起 K1 移除</span></p>
+      <p class="muted">Kotlin DSL 已全面替代 Groovy DSL 成为官方推荐。2.4 兼容 Gradle 7.6.3 – 9.5.0。</p>
+    </div>
+    <div class="card">
+      <h3>测试</h3>
+      <p><span class="badge">Kotlin Test</span><span class="badge">JUnit 5</span><span class="badge">Kotest</span><span class="badge">Power-assert 2.4</span></p>
+    </div>
+    <div class="card">
+      <h3>序列化 / 协程 / DI</h3>
+      <p><span class="badge">kotlinx.serialization</span><span class="badge">kotlinx.coroutines</span><span class="badge">Koin</span><span class="badge">Dagger / Hilt</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- 10 -->
+<section id="sec-10">
+  <h2><span class="num">10</span>为什么印象里「Kotlin = Android」？</h2>
+  <p>事实：Kotlin 是通用 JVM 语言，能力远不止安卓。印象偏差来自<b>生态重心</b>而非<b>技术边界</b>。</p>
+  <div class="grid c2">
+    <div class="card"><h3>① Google 的「超级背书」</h3><p>2017 一等公民 → 2019 Kotlin First，官方文档/codelab/Jetpack 全面 Kotlin-only，社区心智被「安卓」锚定。</p></div>
+    <div class="card"><h3>② 后端缺「杀手级叙事」</h3><p>Spring 是 Java 框架，Kotlin 只是「被支持」；JetBrains 自家 Ktor 生态规模远小于 Spring，撑不起独立后端心智。</p></div>
+    <div class="card"><h3>③ 企业级极度保守</h3><p>千万行存量 Java、招聘写「Java」、合规审批漫长；「不出错」优先于「更优雅」。</p></div>
+    <div class="card"><h3>④ 两个领域切换成本不对称</h3>
+      <table>
+        <tr><th>维度</th><th>Android</th><th>后端/企业级</th></tr>
+        <tr><td>生命周期</td><td>2–5 年</td><td>10–20+ 年</td></tr>
+        <tr><td>代码规模</td><td>数万~数十万</td><td>数百万~千万</td></tr>
+        <tr><td>切换语言阻力</td><td>低（重写可控）</td><td>极高（牵一发动全身）</td></tr>
+        <tr><td>对新语言接受度</td><td>高</td><td>低（保守求稳）</td></tr>
+      </table>
+    </div>
+  </div>
+  <h3>趋势正在改变</h3>
+  <p>Spring Boot 新模块混用 Kotlin 越来越多；协程在 I/O 密集场景占优；KMP / Compose Multiplatform 模糊「安卓语言」边界；Kotlin 2.4 Swift 互操作 Alpha 让跨端真正可用。</p>
+  <p class="muted">未来 5–10 年更可能的路径：成为 Java 生态中<b>「越来越重要的补充」</b>，而非完全替代者。</p>
+</section>
+
+<!-- 11 -->
+<section id="sec-11">
+  <h2><span class="num">11</span>后端可行性：把 Kotlin 当 Java 用</h2>
+  <p>Kotlin 编译为 JVM 字节码，可运行在任意 Java 运行环境。配合 Spring Boot / Ktor 完全可以构建大型企业级后端。</p>
+  <h3>框架矩阵</h3>
+  <table>
+    <tr><th>框架</th><th>风格</th><th>启动</th><th>内存</th><th>适合场景</th></tr>
+    <tr><td>Spring Boot</td><td>约定优于配置</td><td>5–15s</td><td>300–500MB</td><td>企业级、深度集成（LDAP/SAML/Oracle）</td></tr>
+    <tr><td>Ktor</td><td>协程原生、轻量、显式</td><td>&lt; 1s</td><td>80–150MB</td><td>微服务、API、多平台共享</td></tr>
+    <tr><td>Quarkus</td><td>云原生 + GraalVM</td><td>0.1s（原生）</td><td>15–50MB（原生）</td><td>Kubernetes、Serverless</td></tr>
+    <tr><td>Micronaut</td><td>编译时处理</td><td>极快</td><td>极低</td><td>Serverless、CLI、微服务</td></tr>
+    <tr><td>Vert.x / http4k</td><td>响应式 / 函数式</td><td>快</td><td>低</td><td>高并发、实时响应</td></tr>
+  </table>
+  <h3>生产案例（官方列举）</h3>
+  <ul>
+    <li><b>JetBrains Account</b>：JetBrains 自家账号/许可/计费系统，<b>自 2015 年起 100% Kotlin</b> 生产至今。</li>
+    <li><b>Corda</b>：开源分布式账本平台，多家银行使用，<b>全用 Kotlin</b> 编写。</li>
+    <li><b>Adobe Experience Platform</b>：服务端用 Ktor 做原型与生产。</li>
+    <li><b>Chess.com</b>：用 Ktor 管理多 HTTP 客户端。</li>
+  </ul>
+  <p class="muted">部署：可上 AWS / GCP / Azure 等任何 Java 宿主；Quarkus / Ktor 还支持 GraalVM 原生镜像，毫秒级启动。</p>
+</section>
+
+<!-- 12 -->
+<section id="sec-12">
+  <h2><span class="num">12</span>本项目（定时屏保）是「前后端分离」吗？—— 不是</h2>
+  <p>你最初的直觉是对的：这是<b>单机客户端应用</b>，不是前后端分离，也不是服务端渲染集成。</p>
+  <svg viewBox="0 0 680 230" role="img" aria-label="架构对比">
+    <defs><marker id="arrA" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#f5b942"/></marker><marker id="arrB" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#7c9cff"/></marker></defs>
+
+    <rect x="20"  y="40" width="300" height="150" rx="12" fill="#1d2638" stroke="#2c3650"/>
+    <text x="170" y="30" fill="#e6ebf5" font-size="14" text-anchor="middle" font-weight="700">传统 Web 前后端分离</text>
+    <rect x="45"  y="65" width="90" height="40" rx="8" fill="#2a3a5c" stroke="#7c9cff"/><text x="90"  y="90" fill="#e6ebf5" font-size="12" text-anchor="middle">前端 SPA</text>
+    <rect x="205" y="65" width="90" height="40" rx="8" fill="#2a3a5c" stroke="#7c9cff"/><text x="250" y="90" fill="#e6ebf5" font-size="12" text-anchor="middle">后端服务</text>
+    <rect x="205" y="135" width="90" height="40" rx="8" fill="#2a3a5c" stroke="#34d399"/><text x="250" y="160" fill="#e6ebf5" font-size="12" text-anchor="middle">数据库</text>
+    <line x1="135" y1="85" x2="205" y2="85" stroke="#f5b942" stroke-width="2" marker-end="url(#arrA)"/><text x="170" y="78" fill="#f5b942" font-size="10" text-anchor="middle">HTTPS</text>
+    <line x1="250" y1="105" x2="250" y2="135" stroke="#34d399" stroke-width="2" marker-end="url(#arrA)"/><text x="262" y="123" fill="#34d399" font-size="10">SQL</text>
+
+    <rect x="360" y="40" width="300" height="150" rx="12" fill="#1d2638" stroke="#2c3650"/>
+    <text x="510" y="30" fill="#e6ebf5" font-size="14" text-anchor="middle" font-weight="700">本项目 Android 单体</text>
+    <rect x="385" y="65" width="110" height="40" rx="8" fill="#2a3a5c" stroke="#7c9cff"/><text x="440" y="90" fill="#e6ebf5" font-size="12" text-anchor="middle">Compose UI</text>
+    <rect x="525" y="65" width="100" height="40" rx="8" fill="#2a3a5c" stroke="#34d399"/><text x="575" y="90" fill="#e6ebf5" font-size="12" text-anchor="middle">Room + 闹钟</text>
+    <line x1="495" y1="85" x2="525" y2="85" stroke="#7c9cff" stroke-width="2" marker-end="url(#arrB)"/><text x="510" y="78" fill="#7c9cff" font-size="10" text-anchor="middle">同进程</text>
+    <text x="510" y="135" fill="#9aa7c0" font-size="11" text-anchor="middle">数据落在本地 SQLite，无跨网络、无独立服务端</text>
+    <text x="510" y="155" fill="#9aa7c0" font-size="11" text-anchor="middle">调度用 AlarmManager（系统定时器），非后端 cron</text>
+  </svg>
+  <p class="muted">关键差异：本项目刻意「离线优先、无需联网」，所以你完全没感受到前后端交互逻辑——这是<b>需求选择</b>，不是 Android 的必然。Android 应用当然也能调远程 API 走前后端分离，只是这次没用。</p>
+</section>
+
+<!-- 13 -->
+<section id="sec-13">
+  <h2><span class="num">13</span>团队落地三阶段</h2>
+  <div class="summary">
+    <p style="margin:0">核心判断：在「已会 Java」的前提下，引入 Kotlin 是<b>收益大、风险小、可逆</b>的决策——互操作性消除了「全有或全无」的风险，可逐文件、逐模块推进。</p>
+  </div>
+  <h3>阶段一 · 试点（1–2 月）</h3>
+  <ul>
+    <li>1–2 名技术骨干先行学习；</li>
+    <li>选低风险新模块用 Kotlin；</li>
+    <li>与现有 Java 模块通过接口 / REST 交互；</li>
+    <li>产出：可运行代码 + 内部分享。</li>
+  </ul>
+  <h3>阶段二 · 扩展（3–6 月）</h3>
+  <ul>
+    <li>新功能默认 Kotlin；</li>
+    <li>制定编码规范（参考官方 Kotlin Coding Conventions）；</li>
+    <li>建立 Kotlin 的 CI / CD 流程；</li>
+    <li>写内部「Java → Kotlin 迁移指南」（注意 Kotlin 属性在 Java 侧会变成 getXxx / setXxx）；</li>
+    <li>产出：2–3 个生产级 Kotlin 模块。</li>
+  </ul>
+  <h3>阶段三 · 常态化（6 月+）</h3>
+  <ul>
+    <li>新招聘默认要求掌握 Kotlin；</li>
+    <li>存量 Java 在重构时逐步转译；</li>
+    <li>评估协程替代部分异步方案；</li>
+    <li>产出：Kotlin 成为团队主力语言之一。</li>
+  </ul>
+  <h3>风险预警</h3>
+  <ul>
+    <li><b>避免「两套标准」</b>混乱：提前约定模块归属、命名、互调规范。</li>
+    <li><b>预期框架小摩擦</b>：<code>@Autowired</code> 在 Kotlin 可用构造函数注入替代；JPA / Hibernate 与 <code>data class</code> 要注意 <code>equals/hashCode</code> 语义；老旧三方库可能没考虑 Kotlin 空安全注解。</li>
+    <li><b>不期望所有人同样热情</b>：让先行的 1–2 人用成果说话。</li>
+  </ul>
+</section>
+
+<!-- 14 -->
+<section id="sec-14">
+  <h2><span class="num">14</span>学习路径建议</h2>
+  <div class="grid c3">
+    <div class="card">
+      <h3>有 Java 基础</h3>
+      <p>直接抓「空安全 / 扩展函数 / data class / 协程 / 委托」5 个核心差异；2–4 周可上手迁移。</p>
+      <p class="muted">推荐：官方 Kotlin Tour → Kotlin Koans → 看一份真实项目 PR。</p>
+    </div>
+    <div class="card">
+      <h3>编程初学者</h3>
+      <p>Kotlin 语法简洁、学习曲线平缓，是良好的入门选择。</p>
+      <p class="muted">推荐：JetBrains Academy 插件 / Kotlin Koans / Kotlin Playground 在线实验。</p>
+    </div>
+    <div class="card">
+      <h3>实践项目推荐</h3>
+      <p>从 Android 小 App 或 Ktor 后端服务开始；动手写一行代码胜过读十篇博客。</p>
+      <p class="muted">本项目（定时屏保）就是一个非常合适的练手样本。</p>
+    </div>
+  </div>
+  <p class="muted">最后一句：Kotlin 不是要颠覆 Java，而是对三十年工程经验的<b>凝练升华</b>——保留稳健与生态广度，以更严谨的类型系统、更安全、更富表现力的语法，显著提升代码质量与开发效能。</p>
+</section>
+
+<section id="sec-refs">
+  <h2>参考资料（已核实）</h2>
+  <div class="refs">
+    <p>· Kotlin 官方文档：<a href="https://kotlinlang.org/docs/command-line.html">命令行编译器</a> · <a href="https://kotlinlang.org/docs/server-overview.html">后端开发</a> · <a href="https://kotlinlang.org/docs/k2-compiler-migration-guide.html">K2 编译器迁移指南</a> · <a href="https://kotlinlang.org/docs/whatsnew22.html">What's new 2.2</a> · <a href="https://kotlinlang.org/docs/whatsnew23.html">What's new 2.3</a> · <a href="https://kotlinlang.org/docs/whatsnew24.html">What's new 2.4</a></p>
+    <p>· JetBrains 博客：<a href="https://blog.jetbrains.com/zh-hans?p=475551/">K2 编译器性能基准</a></p>
+    <p>· 社区 / 技术博客：Ktor 官网、Studio Cavan（2026 JVM 后端对比）、codearchaeology 语言档案</p>
+  </div>
+</section>
+
+</main>
+</div>
+<script>
+(function(){
+  var links = document.querySelectorAll('.sidebar a[href^="#sec"]');
+  var sections = document.querySelectorAll('section[id]');
+  if (!links.length || !sections.length) return;
+  function setActive(id){
+    links.forEach(function(l){
+      l.classList.toggle('active', l.getAttribute('href') === '#' + id);
+    });
+  }
+  // 初始：根据滚动位置找一个最匹配的 section
+  var obs = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if (e.isIntersecting) setActive(e.target.id);
+    });
+  }, { rootMargin: '-30% 0px -60% 0px', threshold: 0 });
+  sections.forEach(function(s){ obs.observe(s); });
+  // 点击：平滑滚动 + 立刻高亮
+  links.forEach(function(a){
+    a.addEventListener('click', function(e){
+      e.preventDefault();
+      var id = a.getAttribute('href').slice(1);
+      var t = document.getElementById(id);
+      if (t){
+        t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setActive(id);
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>

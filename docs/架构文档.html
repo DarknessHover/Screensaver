@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Screensaver 架构文档</title>
+  <link rel="stylesheet" href="assets/dom-diagrams.css">
+</head>
+<body>
+  <header class="page-header">
+    <h1>Screensaver 架构文档</h1>
+  </header>
+
+  <main class="document-shell">
+    <nav class="document-nav" aria-label="页内导航">
+      <a href="#architecture-overview">快速认识</a>
+      <a href="#system-context">系统上下文</a>
+      <a href="#module-map">代码组件</a>
+      <a href="#uri-lifecycle">数据生命周期</a>
+      <a href="#data-contract">数据契约</a>
+      <a href="#runtime-contract">运行契约</a>
+      <a href="#limitations">限制与缺口</a>
+      <a href="#glossary">术语速查</a>
+      <a href="#build-baseline">构建基线</a>
+      <a href="应用流程文档.html">应用流程文档</a>
+    </nav>
+
+    <section id="architecture-overview" class="content-section">
+      <h2>快速认识这个项目</h2>
+      <p class="lede">Screensaver 是一个只有 <code>app</code> 的单 Gradle 模块 Android 应用：用户为锁屏或桌面建立每天重复的图片规则；Room 保存规则；AlarmManager 只安排下一次规则开始；到点后重新解析两个壁纸域并通过 WallpaperManager 设置壁纸。应用没有轮询、前台服务或云端依赖。</p>
+      <div class="fact-grid">
+        <article class="fact-card">
+          <strong>两个独立壁纸域</strong>
+          <p><code>LOCK</code> 使用 <code>FLAG_LOCK</code>，<code>SYSTEM</code> 使用 <code>FLAG_SYSTEM</code>。规则和冲突检查按域隔离。</p>
+        </article>
+        <article class="fact-card">
+          <strong>每天重复的线性时间</strong>
+          <p>规则采用左闭右开区间 <code>[start, end)</code>，单条不跨午夜；跨午夜需要手工拆成两条。</p>
+        </article>
+        <article class="fact-card">
+          <strong>单闹钟链式调度</strong>
+          <p>始终只保留最近的下一次开始闹钟，触发后再排下一次。空档结束不切换，继续保持已有壁纸。</p>
+        </article>
+        <article class="fact-card">
+          <strong>本地 URI，不复制图片</strong>
+          <p>Storage Access Framework 返回 <code>content://</code> URI；应用保存持久读取授权和 URI 字符串。</p>
+        </article>
+        <article class="fact-card">
+          <strong>手动依赖注入</strong>
+          <p><code>AppContainer</code> 在 Application 中构造 Room、仓储、调度器和壁纸应用器，没有 Hilt。</p>
+        </article>
+        <article class="fact-card">
+          <strong>事实来源</strong>
+          <p>当前源码、Manifest、Gradle、Room schema 与测试优先于历史文档。本页描述当前实现，不描述理想架构。</p>
+        </article>
+      </div>
+      <aside class="callout">
+        <strong>阅读约定：</strong>图中的节点、边、条件和副作用全部静态写在 HTML 中。连接线只是视觉增强；展开“静态边索引”可以在没有 CSS/JavaScript 时完整恢复关系。
+      </aside>
+    </section>
+
+    <section id="system-context" class="content-section">
+      <h2>系统与哪些外部能力交互？</h2>
+      <p class="lede">这张图划定应用边界。Android 系统和文档提供器都在应用进程之外；Room 数据库属于应用私有存储；真实壁纸是 WallpaperManager 的外部副作用。</p>
+
+      <figure id="diagram-system-context" class="diagram" aria-labelledby="caption-system-context">
+        <div class="diagram-header">
+          <div>
+            <span class="diagram-title">图 1 · 系统上下文与外部边界</span>
+            <span class="diagram-subtitle">来源：AndroidManifest.xml、ScreensaverApplication、AppContainer、scheduler 包</span>
+          </div>
+        </div>
+        <div class="diagram-viewport">
+          <div class="diagram-stage" data-layout="manual" data-columns="12">
+            <svg class="connector-layer" aria-hidden="true"></svg>
+
+            <article id="ctx-user" class="flow-node" data-node-type="external-actor" data-row="1" data-col="1" data-col-span="2">
+              <span class="node-id">EXTERNAL ACTOR</span>
+              <strong>设备用户</strong>
+              <p>创建、编辑、删除规则，授予系统能力，或手动立即应用。</p>
+            </article>
+            <article id="ctx-document-provider" class="flow-node" data-node-type="external-system" data-row="1" data-col="5" data-col-span="3">
+              <span class="node-id">EXTERNAL SYSTEM</span>
+              <strong>系统文档提供器</strong>
+              <p>通过 OpenDocument 返回本地图片 URI 与临时读取授权。</p>
+            </article>
+            <article id="ctx-android-events" class="flow-node" data-node-type="external-system" data-row="1" data-col="10" data-col-span="3">
+              <span class="node-id">EXTERNAL SYSTEM</span>
+              <strong>Android 系统事件</strong>
+              <p>开机、包更新、精确闹钟权限获批、亮屏与闹钟到点。</p>
+            </article>
+
+            <article id="ctx-compose-ui" class="flow-node" data-node-type="component" data-row="3" data-col="1" data-col-span="3">
+              <span class="node-id">APP BOUNDARY</span>
+              <strong>Compose UI + ViewModel</strong>
+              <p>呈现状态、收集输入、发出保存/删除/授权/立即应用命令。</p>
+            </article>
+            <article id="ctx-app-core" class="flow-node" data-node-type="shared-handler" data-row="3" data-col="5" data-col-span="4" data-checks="range,domain,current-rule,uri">
+              <span class="node-id">APP CORE</span>
+              <strong>领域解析与应用编排</strong>
+              <p>ScheduleEngine、AppContainer、Repository、AlarmScheduler 和各 Receiver 共同完成规则解析与系统调用。</p>
+            </article>
+            <article id="ctx-event-adapters" class="flow-node" data-node-type="component" data-row="3" data-col="10" data-col-span="3">
+              <span class="node-id">APP BOUNDARY</span>
+              <strong>广播接收器</strong>
+              <p>把 Android 事件转换为“重新排程”或“应用当前壁纸”的内部调用。</p>
+            </article>
+
+            <article id="ctx-room" class="flow-node" data-node-type="data-state" data-state="persisted-rules" data-row="5" data-col="1" data-col-span="3">
+              <span class="node-id">PRIVATE DATA</span>
+              <strong>Room：screensaver.db</strong>
+              <p>应用私有的 rules 单表；只保存时间、域、图片 URI 和创建时间。</p>
+            </article>
+            <article id="ctx-alarm-manager" class="flow-node" data-node-type="external-system" data-row="5" data-col="5" data-col-span="3">
+              <span class="node-id">ANDROID SERVICE</span>
+              <strong>AlarmManager</strong>
+              <p>持有唯一下一次开始闹钟；精确能力不足时允许降级误差。</p>
+            </article>
+            <article id="ctx-wallpaper-manager" class="flow-node" data-node-type="external-system" data-row="5" data-col="9" data-col-span="3">
+              <span class="node-id">ANDROID SERVICE</span>
+              <strong>WallpaperManager</strong>
+              <p>接收解码后的 Bitmap，并按 LOCK 或 SYSTEM 域设置壁纸。</p>
+            </article>
+            <article id="ctx-device-wallpapers" class="flow-node" data-node-type="side-effect" data-side-effect="replace-device-wallpaper" data-row="7" data-col="9" data-col-span="3">
+              <span class="node-id">DEVICE SIDE EFFECT</span>
+              <strong>设备锁屏/桌面壁纸改变</strong>
+              <p>系统或厂商 ROM 可能接受、延迟或拒绝该副作用。</p>
+            </article>
+          </div>
+        </div>
+        <figcaption id="caption-system-context">应用不会上传图片，也不保存图片副本。最关键的外部不确定性来自 AlarmManager 的系统调度与厂商对 FLAG_LOCK 的支持。</figcaption>
+        <details class="relation-index">
+          <summary>静态边索引（11 条）</summary>
+          <ol class="edge-model">
+            <li data-from="ctx-user" data-to="ctx-compose-ui" data-label="操作界面" data-kind="control"><span class="edge-key">ctx-user → ctx-compose-ui</span>：用户通过 Compose 界面创建、编辑、删除规则或立即应用。</li>
+            <li data-from="ctx-compose-ui" data-to="ctx-document-provider" data-label="OpenDocument" data-kind="control" data-route="left"><span class="edge-key">ctx-compose-ui → ctx-document-provider</span>：规则编辑器发起系统文件选择。</li>
+            <li data-from="ctx-document-provider" data-to="ctx-compose-ui" data-label="URI + 临时授权" data-kind="data"><span class="edge-key">ctx-document-provider → ctx-compose-ui</span>：文档提供器返回 content URI 和可持久化读取授权。</li>
+            <li data-from="ctx-compose-ui" data-to="ctx-app-core" data-label="状态与命令" data-kind="control"><span class="edge-key">ctx-compose-ui → ctx-app-core</span>：ViewModel 把保存、删除、排程和应用请求交给内部组件。</li>
+            <li data-from="ctx-android-events" data-to="ctx-event-adapters" data-label="系统广播" data-kind="control"><span class="edge-key">ctx-android-events → ctx-event-adapters</span>：系统向静态或动态 Receiver 发送事件。</li>
+            <li data-from="ctx-event-adapters" data-to="ctx-app-core" data-label="排程 / 应用" data-kind="control"><span class="edge-key">ctx-event-adapters → ctx-app-core</span>：Receiver 复用 AppContainer 和 AlarmScheduler，不复制领域解析。</li>
+            <li data-from="ctx-app-core" data-to="ctx-room" data-label="读写 rules" data-kind="data"><span class="edge-key">ctx-app-core → ctx-room</span>：Repository 经 DAO 读写本地规则。</li>
+            <li data-from="ctx-app-core" data-to="ctx-alarm-manager" data-label="下一次开始" data-kind="side-effect"><span class="edge-key">ctx-app-core → ctx-alarm-manager</span>：AlarmScheduler 注册或取消唯一 PendingIntent。</li>
+            <li data-from="ctx-alarm-manager" data-to="ctx-event-adapters" data-label="到点回调" data-kind="loop"><span class="edge-key">ctx-alarm-manager → ctx-event-adapters</span>：到点后 WallpaperSwitchReceiver 被唤醒，并形成每日循环。</li>
+            <li data-from="ctx-app-core" data-to="ctx-wallpaper-manager" data-label="按域设置 Bitmap" data-kind="side-effect"><span class="edge-key">ctx-app-core → ctx-wallpaper-manager</span>：WallpaperApplier 调用系统 API。</li>
+            <li data-from="ctx-wallpaper-manager" data-to="ctx-device-wallpapers" data-label="接受或拒绝" data-kind="side-effect"><span class="edge-key">ctx-wallpaper-manager → ctx-device-wallpapers</span>：系统执行真实壁纸变更，厂商实现可能拒绝锁屏域。</li>
+          </ol>
+        </details>
+      </figure>
+    </section>
+
+    <section id="module-map" class="content-section">
+      <h2>源码逻辑组件如何依赖？</h2>
+      <p class="lede">本节的“组件”是类、包和职责边界，不是独立 Gradle module。依赖大体遵循 UI → ViewModel → 容器/仓储/领域 → Android 适配器。ScheduleEngine 是唯一不依赖 Android 的核心规则组件；AppContainer 是跨路径共享处理器。</p>
+
+      <figure id="diagram-module-map" class="diagram" aria-labelledby="caption-module-map">
+        <div class="diagram-header">
+          <div>
+            <span class="diagram-title">图 2 · 真实代码模块与直接调用</span>
+            <span class="diagram-subtitle">虚线视觉对应循环/回调；静态索引区分直接调用与构造关系</span>
+          </div>
+        </div>
+        <div class="diagram-viewport">
+          <div class="diagram-stage" data-layout="manual" data-columns="12">
+            <svg class="connector-layer" aria-hidden="true"></svg>
+
+            <article id="mod-application" class="flow-node" data-node-type="component" data-row="1" data-col="1" data-col-span="2">
+              <span class="node-id">APPLICATION</span>
+              <strong>ScreensaverApplication</strong>
+              <p>进程级创建 AppContainer，并动态注册 ScreenOnReceiver。</p>
+            </article>
+            <article id="mod-main-activity" class="flow-node" data-node-type="component" data-row="1" data-col="4" data-col-span="2">
+              <span class="node-id">UI ENTRY</span>
+              <strong>MainActivity</strong>
+              <p>Launcher、NavHost、ViewModel 工厂；启动时排程并立即应用。</p>
+            </article>
+            <article id="mod-home-screen" class="flow-node" data-node-type="component" data-row="1" data-col="7" data-col-span="2">
+              <span class="node-id">COMPOSE UI</span>
+              <strong>HomeScreen</strong>
+              <p>域切换、Hero、规则列表、权限卡、删除确认和立即应用。</p>
+            </article>
+            <article id="mod-editor-screen" class="flow-node" data-node-type="component" data-row="1" data-col="10" data-col-span="2">
+              <span class="node-id">COMPOSE UI</span>
+              <strong>RuleEditorScreen</strong>
+              <p>时间与域编辑、OpenDocument、持久授权确认和 Snackbar。</p>
+            </article>
+
+            <article id="mod-app-container" class="flow-node" data-node-type="shared-handler" data-row="3" data-col="1" data-col-span="3" data-checks="resolve-domain,uri-present" data-omits="database-transactional-overlap-constraint">
+              <span class="node-id">MANUAL DI</span>
+              <strong>AppContainer</strong>
+              <p>构造依赖；提供 applyCurrentNow、applyCurrentDomain 和 URI 引用释放。</p>
+            </article>
+            <article id="mod-home-vm" class="flow-node" data-node-type="component" data-row="3" data-col="5" data-col-span="2">
+              <span class="node-id">VIEWMODEL</span>
+              <strong>HomeViewModel</strong>
+              <p>组合规则流、当前域与权限状态；处理删除和手动应用。</p>
+            </article>
+            <article id="mod-editor-vm" class="flow-node" data-node-type="component" data-row="3" data-col="8" data-col-span="2">
+              <span class="node-id">VIEWMODEL</span>
+              <strong>RuleEditorViewModel</strong>
+              <p>编辑状态、即时/保存前冲突校验、写库、排程与立即应用。</p>
+            </article>
+            <article id="mod-receivers" class="flow-node" data-node-type="component" data-row="3" data-col="11" data-col-span="2">
+              <span class="node-id">EVENT ADAPTERS</span>
+              <strong>三个 Receiver</strong>
+              <p>BootCompleted 接开机/包更新/精确授权；WallpaperSwitch 接本应用闹钟；ScreenOn 仅进程内动态注册。</p>
+            </article>
+
+            <article id="mod-repository" class="flow-node" data-node-type="component" data-row="5" data-col="1" data-col-span="2">
+              <span class="node-id">DATA API</span>
+              <strong>ScreensaverRepository</strong>
+              <p>RuleDao 的薄封装：观察、全量读、按 ID 读、插入、更新、删除。</p>
+            </article>
+            <article id="mod-schedule-engine" class="flow-node" data-node-type="component" data-row="5" data-col="4" data-col-span="2">
+              <span class="node-id">PURE DOMAIN</span>
+              <strong>ScheduleEngine</strong>
+              <p>区间合法性、按域 resolve、开始分钟去重、占用区间提取。</p>
+            </article>
+            <article id="mod-alarm-scheduler" class="flow-node" data-node-type="component" data-row="5" data-col="7" data-col-span="2">
+              <span class="node-id">SYSTEM ADAPTER</span>
+              <strong>AlarmScheduler</strong>
+              <p>计算最近下一次开始、取消旧 PendingIntent、精确/非精确降级。</p>
+            </article>
+            <article id="mod-apply-pipeline" class="flow-node" data-node-type="shared-handler" data-row="5" data-col="10" data-col-span="3" data-checks="current-minute,domain-match,image-uri">
+              <span class="node-id">SHARED HANDLER</span>
+              <strong>AppContainer.applyDomain</strong>
+              <p>所有壁纸应用路径共享：resolve → URI 检查 → WallpaperApplier。</p>
+            </article>
+
+            <article id="mod-room-dao" class="flow-node" data-node-type="data-state" data-state="persisted-rules" data-row="7" data-col="1" data-col-span="2">
+              <span class="node-id">ROOM</span>
+              <strong>AppDatabase + RuleDao</strong>
+              <p>版本 1，rules 单表，fallbackToDestructiveMigration。</p>
+            </article>
+            <article id="mod-alarm-manager" class="flow-node" data-node-type="external-system" data-row="7" data-col="4" data-col-span="2">
+              <span class="node-id">ANDROID API</span>
+              <strong>AlarmManager</strong>
+              <p>RTC_WAKEUP；PendingIntent 指向 WallpaperSwitchReceiver。</p>
+            </article>
+            <article id="mod-wallpaper-applier" class="flow-node" data-node-type="component" data-row="7" data-col="7" data-col-span="2">
+              <span class="node-id">SYSTEM ADAPTER</span>
+              <strong>WallpaperApplier</strong>
+              <p>ContentResolver 解码、降采样和 FLAG_LOCK/FLAG_SYSTEM 设置。</p>
+            </article>
+            <article id="mod-android-wallpaper" class="flow-node" data-node-type="external-system" data-row="7" data-col="10" data-col-span="3">
+              <span class="node-id">ANDROID APIs</span>
+              <strong>ContentResolver + WallpaperManager</strong>
+              <p>读取 URI 流并执行设备壁纸副作用。</p>
+            </article>
+          </div>
+        </div>
+        <figcaption id="caption-module-map">AppContainer 既是构造容器，也是共享应用编排器。Receiver 不直接复制 ScheduleEngine/WallpaperApplier 逻辑；ScreenOnReceiver 只调用单域入口。</figcaption>
+        <details class="relation-index">
+          <summary>静态边索引（28 条）</summary>
+          <ol class="edge-model">
+            <li data-from="mod-application" data-to="mod-app-container" data-label="创建一次" data-kind="construction"><span class="edge-key">mod-application → mod-app-container</span>：Application 在进程创建时构造唯一容器。</li>
+            <li data-from="mod-application" data-to="mod-receivers" data-label="动态注册 ScreenOn" data-kind="construction"><span class="edge-key">mod-application → mod-receivers</span>：仅 ScreenOnReceiver 动态注册，生命周期等于应用进程。</li>
+            <li data-from="mod-main-activity" data-to="mod-app-container" data-label="获取容器" data-kind="dependency"><span class="edge-key">mod-main-activity → mod-app-container</span>：Activity 通过 Application 取得容器并调用启动排程/应用。</li>
+            <li data-from="mod-main-activity" data-to="mod-home-screen" data-label="home 路由" data-kind="navigation"><span class="edge-key">mod-main-activity → mod-home-screen</span>：NavHost 的首页路由渲染 HomeScreen。</li>
+            <li data-from="mod-main-activity" data-to="mod-editor-screen" data-label="editor 路由" data-kind="navigation" data-route="top"><span class="edge-key">mod-main-activity → mod-editor-screen</span>：编辑路由携带 ruleId 与默认 domain。</li>
+            <li data-from="mod-home-screen" data-to="mod-home-vm" data-label="状态 / 事件" data-kind="control"><span class="edge-key">mod-home-screen → mod-home-vm</span>：首页收集 StateFlow，并发出域选择、删除、权限刷新和立即应用事件。</li>
+            <li data-from="mod-editor-screen" data-to="mod-editor-vm" data-label="编辑 / 保存" data-kind="control"><span class="edge-key">mod-editor-screen → mod-editor-vm</span>：编辑器维护输入并把最终保存交给 ViewModel。</li>
+            <li data-from="mod-home-vm" data-to="mod-repository" data-label="观察 / 删除" data-kind="data"><span class="edge-key">mod-home-vm → mod-repository</span>：首页观察全部规则并执行删除。</li>
+            <li data-from="mod-home-vm" data-to="mod-schedule-engine" data-label="解析当前规则" data-kind="dependency"><span class="edge-key">mod-home-vm → mod-schedule-engine</span>：前台展示按当前分钟分别解析两个域。</li>
+            <li data-from="mod-home-vm" data-to="mod-app-container" data-label="删除后清理 / 立即应用" data-kind="control"><span class="edge-key">mod-home-vm → mod-app-container</span>：删除后请求 URI 回收，手动操作调用 applyCurrentNow 真实设置壁纸。</li>
+            <li data-from="mod-editor-vm" data-to="mod-repository" data-label="读写规则" data-kind="data"><span class="edge-key">mod-editor-vm → mod-repository</span>：加载占用区间并插入或更新规则。</li>
+            <li data-from="mod-editor-vm" data-to="mod-schedule-engine" data-label="范围 / 冲突" data-kind="dependency"><span class="edge-key">mod-editor-vm → mod-schedule-engine</span>：保存前验证范围并读取同域区间。</li>
+            <li data-from="mod-editor-vm" data-to="mod-app-container" data-label="清理 / 立即应用" data-kind="control" data-route="top"><span class="edge-key">mod-editor-vm → mod-app-container</span>：写库后按需释放旧 URI，并应用当前规则。</li>
+            <li data-from="mod-editor-vm" data-to="mod-alarm-scheduler" data-label="保存后重排" data-kind="control"><span class="edge-key">mod-editor-vm → mod-alarm-scheduler</span>：新建或更新规则后计算下一次开始。</li>
+            <li data-from="mod-home-vm" data-to="mod-alarm-scheduler" data-label="删除 / 授权后重排" data-kind="control"><span class="edge-key">mod-home-vm → mod-alarm-scheduler</span>：删除规则或检测到精确能力新获批时重排。</li>
+            <li data-from="mod-app-container" data-to="mod-repository" data-label="构造与读取" data-kind="construction"><span class="edge-key">mod-app-container → mod-repository</span>：容器用 RuleDao 构造 Repository，并在应用链路读取规则。</li>
+            <li data-from="mod-app-container" data-to="mod-alarm-scheduler" data-label="构造" data-kind="construction"><span class="edge-key">mod-app-container → mod-alarm-scheduler</span>：容器注入 Context、Repository 和 ScheduleEngine。</li>
+            <li data-from="mod-app-container" data-to="mod-apply-pipeline" data-label="双域 / 单域入口" data-kind="control"><span class="edge-key">mod-app-container → mod-apply-pipeline</span>：公开入口最终汇入私有 applyDomain。</li>
+            <li data-from="mod-repository" data-to="mod-room-dao" data-label="DAO 调用" data-kind="data"><span class="edge-key">mod-repository → mod-room-dao</span>：Repository 是 DAO 的薄封装，没有第二套数据实现。</li>
+            <li data-from="mod-alarm-scheduler" data-to="mod-repository" data-label="读取全部规则" data-kind="data"><span class="edge-key">mod-alarm-scheduler → mod-repository</span>：每次重排都读取当前数据库规则。</li>
+            <li data-from="mod-alarm-scheduler" data-to="mod-schedule-engine" data-label="startMinutes" data-kind="dependency"><span class="edge-key">mod-alarm-scheduler → mod-schedule-engine</span>：领域函数过滤非法或无图规则并去重开始分钟。</li>
+            <li data-from="mod-alarm-scheduler" data-to="mod-alarm-manager" data-label="注册 / 取消" data-kind="side-effect"><span class="edge-key">mod-alarm-scheduler → mod-alarm-manager</span>：系统中只保留固定请求码的下一次 PendingIntent。</li>
+            <li data-from="mod-receivers" data-to="mod-app-container" data-label="复用容器" data-kind="control" data-route="bottom"><span class="edge-key">mod-receivers → mod-app-container</span>：三个 Receiver 从 ScreensaverApplication 取得共享依赖。</li>
+            <li data-from="mod-receivers" data-to="mod-alarm-scheduler" data-label="事件后重排" data-kind="loop"><span class="edge-key">mod-receivers → mod-alarm-scheduler</span>：开机、包更新、授权获批和闹钟到点可触发重排。</li>
+            <li data-from="mod-receivers" data-to="mod-apply-pipeline" data-label="双域或 LOCK" data-kind="control"><span class="edge-key">mod-receivers → mod-apply-pipeline</span>：闹钟/开机应用双域；亮屏只应用 LOCK。</li>
+            <li data-from="mod-apply-pipeline" data-to="mod-schedule-engine" data-label="resolve" data-kind="dependency"><span class="edge-key">mod-apply-pipeline → mod-schedule-engine</span>：按当前分钟和域得到唯一命中规则。</li>
+            <li data-from="mod-apply-pipeline" data-to="mod-wallpaper-applier" data-label="URI + domain" data-kind="control"><span class="edge-key">mod-apply-pipeline → mod-wallpaper-applier</span>：仅命中规则且 URI 非空时才进入系统适配器。</li>
+            <li data-from="mod-wallpaper-applier" data-to="mod-android-wallpaper" data-label="读取并设置" data-kind="side-effect"><span class="edge-key">mod-wallpaper-applier → mod-android-wallpaper</span>：ContentResolver 解码图片后由 WallpaperManager 改变设备状态。</li>
+          </ol>
+        </details>
+      </figure>
+    </section>
+
+    <section id="uri-lifecycle" class="content-section">
+      <h2>图片 URI 和规则怎样存活？</h2>
+      <p class="lede">图片本身不进入数据库。数据库只保存 URI；能否长期读取取决于 ContentResolver 中的持久授权。替换或删除规则时以“数据库是否仍有引用”作为释放条件。</p>
+
+      <figure id="diagram-uri-lifecycle" class="diagram" aria-labelledby="caption-uri-lifecycle">
+        <div class="diagram-header">
+          <div>
+            <span class="diagram-title">图 3 · URI 授权与规则引用生命周期</span>
+            <span class="diagram-subtitle">包含当前实现缺口：持久授权后取消编辑不会主动释放</span>
+          </div>
+        </div>
+        <div class="diagram-viewport">
+          <div class="diagram-stage" data-layout="manual" data-columns="12">
+            <svg class="connector-layer" aria-hidden="true"></svg>
+
+            <article id="uri-open-document" class="flow-node" data-node-type="component" data-row="1" data-col="1" data-col-span="2">
+              <span class="node-id">PICKER</span>
+              <strong>OpenDocument 选图</strong>
+              <p>系统返回 content URI；应用请求只读持久授权。</p>
+            </article>
+            <article id="uri-persist-check" class="flow-node" data-node-type="decision" data-row="1" data-col="4" data-col-span="3">
+              <span class="node-id">DECISION</span>
+              <strong>持久读取授权确认成功？</strong>
+              <p>调用 takePersistableUriPermission 后再查询 persistedUriPermissions。</p>
+            </article>
+            <article id="uri-picker-rejected" class="flow-node" data-node-type="terminal" data-state="not-selected" data-row="1" data-col="9" data-col-span="3">
+              <span class="node-id">SAFE EXIT</span>
+              <strong>拒绝进入编辑状态</strong>
+              <p>显示 Snackbar；数据库和 selectedImageUri 都不改变。</p>
+            </article>
+
+            <article id="uri-editor-state" class="flow-node" data-node-type="data-state" data-state="persisted-grant-unsaved" data-row="3" data-col="1" data-col-span="3">
+              <span class="node-id">MEMORY STATE</span>
+              <strong>selectedImageUri 已更新</strong>
+              <p>此时授权已经持久化，但规则可能尚未保存。</p>
+            </article>
+            <article id="uri-save-choice" class="flow-node" data-node-type="decision" data-row="3" data-col="5" data-col-span="3">
+              <span class="node-id">DECISION</span>
+              <strong>用户保存还是取消编辑？</strong>
+              <p>保存进入 Room；取消直接离开页面。</p>
+            </article>
+            <article id="uri-unsaved-grant" class="flow-node" data-node-type="terminal" data-state="orphaned-persisted-grant" data-row="3" data-col="10" data-col-span="3">
+              <span class="node-id">KNOWN GAP</span>
+              <strong>未保存授权暂留</strong>
+              <p>当前没有 onDispose 回收；授权可能保留到应用卸载或未来清理。</p>
+            </article>
+
+            <article id="uri-rule-row" class="flow-node" data-node-type="data-state" data-state="persisted-rule-reference" data-row="5" data-col="1" data-col-span="3">
+              <span class="node-id">ROOM STATE</span>
+              <strong>rules.image_uri 持有引用</strong>
+              <p>一个 URI 可以被多条规则复用；数据库没有单独图片表。</p>
+            </article>
+            <article id="uri-rule-change" class="flow-node" data-node-type="decision" data-row="5" data-col="5" data-col-span="3">
+              <span class="node-id">DECISION</span>
+              <strong>规则被替换或删除？</strong>
+              <p>保存新 URI 或删除规则后，检查旧 URI 是否仍被引用。</p>
+            </article>
+            <article id="uri-reference-check" class="flow-node" data-node-type="decision" data-row="5" data-col="10" data-col-span="3">
+              <span class="node-id">DECISION</span>
+              <strong>数据库还有相同 URI？</strong>
+              <p>全量读取规则，以 URI 字符串相等判断是否还有引用。</p>
+            </article>
+
+            <article id="uri-keep-grant" class="flow-node" data-node-type="terminal" data-state="grant-retained" data-row="7" data-col="3" data-col-span="3">
+              <span class="node-id">NO-OP EXIT</span>
+              <strong>保留持久授权</strong>
+              <p>至少一条规则仍需要读取图片，不调用 release。</p>
+            </article>
+            <article id="uri-release-grant" class="flow-node" data-node-type="side-effect" data-side-effect="release-uri-read-grant" data-row="7" data-col="8" data-col-span="3">
+              <span class="node-id">SIDE EFFECT</span>
+              <strong>释放旧 URI 读取授权</strong>
+              <p>仅存在匹配的持久读授权时调用 releasePersistableUriPermission；失败只记录警告。</p>
+            </article>
+          </div>
+        </div>
+        <figcaption id="caption-uri-lifecycle">“规则引用”和“ContentResolver 授权”是两种不同状态。当前实现正确处理保存后的替换/删除，但没有处理“选图后直接取消”的孤儿授权。</figcaption>
+        <details class="relation-index">
+          <summary>静态边索引（11 条）</summary>
+          <ol class="edge-model">
+            <li data-from="uri-open-document" data-to="uri-persist-check" data-label="请求持久授权" data-kind="control"><span class="edge-key">uri-open-document → uri-persist-check</span>：选图回调尝试取得并验证只读持久授权。</li>
+            <li data-from="uri-persist-check" data-to="uri-picker-rejected" data-label="否：提示失败" data-kind="failure"><span class="edge-key">uri-persist-check → uri-picker-rejected</span>：授权失败时不保存不可长期读取的 URI。</li>
+            <li data-from="uri-persist-check" data-to="uri-editor-state" data-label="是：写入内存状态" data-kind="data"><span class="edge-key">uri-persist-check → uri-editor-state</span>：授权确认成功后更新 selectedImageUri。</li>
+            <li data-from="uri-editor-state" data-to="uri-save-choice" data-label="等待用户决定" data-kind="control"><span class="edge-key">uri-editor-state → uri-save-choice</span>：URI 先存在 ViewModel 状态，尚未写库。</li>
+            <li data-from="uri-save-choice" data-to="uri-unsaved-grant" data-label="取消" data-kind="failure"><span class="edge-key">uri-save-choice → uri-unsaved-grant</span>：取消页面不会触发当前的 URI 回收函数。</li>
+            <li data-from="uri-save-choice" data-to="uri-rule-row" data-label="保存成功" data-kind="data"><span class="edge-key">uri-save-choice → uri-rule-row</span>：规则写入 Room 后 URI 成为持久业务引用。</li>
+            <li data-from="uri-rule-row" data-to="uri-rule-change" data-label="后续编辑 / 删除" data-kind="control"><span class="edge-key">uri-rule-row → uri-rule-change</span>：旧 URI 只有在规则变更时进入回收判断。</li>
+            <li data-from="uri-rule-change" data-to="uri-reference-check" data-label="检查旧 URI" data-kind="data"><span class="edge-key">uri-rule-change → uri-reference-check</span>：AppContainer 重新读取所有规则检查引用。</li>
+            <li data-from="uri-reference-check" data-to="uri-keep-grant" data-label="是：仍有引用" data-kind="control"><span class="edge-key">uri-reference-check → uri-keep-grant</span>：共享 URI 仍被使用，释放操作成为 no-op。</li>
+            <li data-from="uri-reference-check" data-to="uri-release-grant" data-label="否：无引用" data-kind="side-effect"><span class="edge-key">uri-reference-check → uri-release-grant</span>：最后一条引用消失后释放持久读取授权。</li>
+            <li data-from="uri-release-grant" data-to="uri-open-document" data-label="未来可重新选择" data-kind="loop" data-route="left"><span class="edge-key">uri-release-grant → uri-open-document</span>：释放不删除原图片；用户以后仍可通过系统选择器重新授权。</li>
+          </ol>
+        </details>
+      </figure>
+    </section>
+
+    <section id="data-contract" class="content-section">
+      <h2>Room 数据契约</h2>
+      <p class="lede">数据库没有跨行区间约束，最终合法性依赖 ViewModel 保存前校验。第三方代码若绕过 ViewModel 直接写 DAO，必须自行维护同样约束。</p>
+      <div class="table-wrap">
+        <table id="table-rule-schema" data-table-kind="database-schema">
+          <thead>
+            <tr><th>列</th><th>Kotlin / SQLite</th><th>当前约束</th><th>产生与消费位置</th></tr>
+          </thead>
+          <tbody>
+            <tr id="schema-rule-id" data-contract="primary-key"><td><code>id</code></td><td>Long / INTEGER</td><td>自增主键</td><td>Room 生成；编辑、删除、排除自身时使用</td></tr>
+            <tr id="schema-start-minute" data-contract="range-start"><td><code>start_minute</code></td><td>Int / INTEGER</td><td>应用层要求 0..1439；数据库无 CHECK</td><td>编辑器写入；resolve、排序和调度读取</td></tr>
+            <tr id="schema-end-minute" data-contract="range-end"><td><code>end_minute</code></td><td>Int / INTEGER</td><td>应用层要求 1..1440 且大于 start；数据库无 CHECK</td><td>编辑器写入；resolve 与 UI 展示读取</td></tr>
+            <tr id="schema-image-uri" data-contract="persisted-uri"><td><code>image_uri</code></td><td>String? / TEXT NULL</td><td>schema 可空；当前 UI 只保存已确认持久授权的非空 URI</td><td>WallpaperApplier 经 ContentResolver 读取</td></tr>
+            <tr id="schema-wallpaper-domain" data-contract="enum-domain"><td><code>wallpaper_domain</code></td><td>WallpaperDomain / TEXT</td><td><code>LOCK</code> 或 <code>SYSTEM</code>；Converter 对未知值回退 SYSTEM</td><td>分域列表、冲突检查、resolve 与 WallpaperManager flag</td></tr>
+            <tr id="schema-created-at" data-contract="creation-time"><td><code>created_at</code></td><td>Long / INTEGER</td><td>创建时写入；编辑保留原值</td><td>当前不参与调度裁决</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="contract-grid">
+        <article class="contract-card"><strong>区间语义</strong><p><code>start &lt;= now &lt; end</code>。结束点不再命中当前规则。</p></article>
+        <article class="contract-card"><strong>跨午夜</strong><p>单条规则不支持 wrap-around；22:00–02:00 必须拆成 22:00–24:00 和 00:00–02:00。</p></article>
+        <article class="contract-card"><strong>同域冲突</strong><p>UI/VM 禁止重叠，但数据库没有 UNIQUE/EXCLUDE/CHECK 能阻止并发或旁路写入。</p></article>
+        <article class="contract-card"><strong>旁路重叠兜底</strong><p>若数据库已出现同域重叠，resolve 选择 startMinute 最小者；相同 startMinute 的平局取决于输入顺序，而 DAO 的全量查询没有排序保证，因此不应把它当作 priority 或完全确定的裁决。</p></article>
+        <article class="contract-card"><strong>无图重叠行</strong><p>resolve 不过滤空 URI。若旁路数据产生重叠且最先命中的规则无图，应用链会选择它后跳过设置，不会继续寻找另一条有图规则。</p></article>
+        <article class="contract-card"><strong>迁移策略</strong><p>版本为 1，启用 <code>fallbackToDestructiveMigration()</code>；schema 变化允许清空规则。</p></article>
+      </div>
+    </section>
+
+    <section id="runtime-contract" class="content-section">
+      <h2>权限、线程与恢复契约</h2>
+      <div class="table-wrap">
+        <table id="table-permissions" data-table-kind="permission-contract">
+          <thead><tr><th>能力</th><th>用途</th><th>获得/复查位置</th><th>失败或撤销后的行为</th></tr></thead>
+          <tbody>
+            <tr id="permission-wallpaper" data-contract="set-wallpaper"><td><code>SET_WALLPAPER</code></td><td>设置两个壁纸域</td><td>Manifest 普通权限</td><td>系统调用异常返回 false 并写日志</td></tr>
+            <tr id="permission-boot" data-contract="boot-recovery"><td><code>RECEIVE_BOOT_COMPLETED</code></td><td>重启后恢复排程</td><td>Manifest + BootCompletedReceiver</td><td>未收到广播时等待用户打开应用</td></tr>
+            <tr id="permission-exact-alarm" data-contract="exact-alarm"><td><code>SCHEDULE_EXACT_ALARM</code></td><td>API 31+ 精确切换</td><td>首页提示；onResume 与授权广播复查</td><td>未授权降级 <code>setAndAllowWhileIdle</code>；可能延迟</td></tr>
+            <tr id="permission-battery" data-contract="battery-exemption"><td><code>REQUEST_IGNORE_BATTERY_OPTIMIZATIONS</code></td><td>降低部分 ROM 后台冻结概率</td><td>首页提示；onResume 查询 PowerManager</td><td>不保证厂商执行，也不能解除 force-stop</td></tr>
+            <tr id="permission-uri" data-contract="persisted-uri-read"><td>SAF 持久读授权</td><td>长期读取用户图片</td><td>选图回调取得并验证</td><td>失败则拒绝选择；最后引用删除后释放</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="contract-grid">
+        <article class="contract-card"><strong>主线程</strong><p>Compose、导航回调和 ViewModel 事件在主线程；挂起后回到 viewModelScope 主调度器。</p></article>
+        <article class="contract-card"><strong>IO 工作</strong><p>Room、闹钟重排、图片读取和壁纸设置在 Dispatchers.IO；当前规则纯计算可在 Default。</p></article>
+        <article class="contract-card"><strong>Receiver 生命周期</strong><p>异步 Receiver 调用 <code>goAsync()</code>，并在 <code>finally</code> 中 finish；仍受系统广播时间预算约束。</p></article>
+        <article class="contract-card"><strong>锁屏失败恢复</strong><p>FLAG_LOCK 失败后以 elapsedRealtime 进入 30 分钟进程内退避；成功后清零，不永久熔断。</p></article>
+        <article class="contract-card"><strong>本地时间</strong><p>规则分钟和 RTC_WAKEUP 都使用设备当前本地日历时间。当前没有监听手动改时、时区变化或日期变化；这些变化后要到下一次已有入口重排才会校正。</p></article>
+        <article class="contract-card"><strong>并发所有权</strong><p>AppContainer 没有全局互斥或任务队列。Activity、ViewModel 与多个 Receiver 的协程可能重叠；数据库重叠校验和 WallpaperManager 调用都不是跨入口串行事务。</p></article>
+      </div>
+
+      <h3>Receiver 与 action 的实际归属</h3>
+      <div class="table-wrap">
+        <table id="table-receiver-actions" data-table-kind="receiver-actions">
+          <thead><tr><th>Receiver</th><th>注册方式</th><th>接收 action</th><th>核心动作</th></tr></thead>
+          <tbody>
+            <tr id="receiver-boot" data-state="manifest-static"><td><code>BootCompletedReceiver</code></td><td>Manifest 静态、exported</td><td><code>BOOT_COMPLETED</code>、<code>MY_PACKAGE_REPLACED</code>、精确闹钟授权状态改变</td><td>前两者先重排再应用双域；授权广播复查成功后只重排</td></tr>
+            <tr id="receiver-wallpaper-switch" data-state="private-pending-intent"><td><code>WallpaperSwitchReceiver</code></td><td>Manifest 静态、not exported、无 intent-filter</td><td>只接收本应用固定 PendingIntent</td><td>先应用双域，再重排下一次</td></tr>
+            <tr id="receiver-screen-on" data-state="process-dynamic"><td><code>ScreenOnReceiver</code></td><td>Application 启动后动态注册</td><td><code>ACTION_SCREEN_ON</code></td><td>只应用 LOCK；进程不存在时收不到</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="limitations" class="content-section">
+      <h2>当前限制与明确缺口</h2>
+      <div class="table-wrap">
+        <table id="table-known-limitations" data-table-kind="known-limitations">
+          <thead><tr><th>限制</th><th>当前真实行为</th><th>开发者注意事项</th></tr></thead>
+          <tbody>
+            <tr id="limit-force-stop" data-state="external-stop"><td>用户强制停止</td><td>系统阻止闹钟和广播，应用无法自行恢复</td><td>用户再次打开 MainActivity 后才会重排</td></tr>
+            <tr id="limit-oem-background" data-state="oem-dependent"><td>厂商后台策略</td><td>即使有闹钟和白名单，也可能冻结或延迟进程</td><td>不要把电池白名单描述成绝对保证</td></tr>
+            <tr id="limit-lock-wallpaper" data-state="oem-dependent"><td>厂商锁屏实现</td><td>FLAG_LOCK 可能被主题/锁屏组件拒绝</td><td>当前使用 30 分钟退避并记录日志</td></tr>
+            <tr id="limit-overlap-race" data-state="application-guard-only"><td>并发写入重叠</td><td>保存前会重读检查，但没有数据库事务约束</td><td>新增写入口时必须复用校验或补数据库级保护</td></tr>
+            <tr id="limit-unsaved-uri" data-state="orphaned-grant"><td>未保存 URI 授权</td><td>选图后取消、校验失败，或同一编辑会话再次选图时，先前取得的持久授权可能没有业务引用但仍保留</td><td>当前没有启动对账或编辑器销毁清理；未来应按数据库引用释放</td></tr>
+            <tr id="limit-time-change" data-state="missing-recovery-trigger"><td>系统时间或时区变化</td><td>没有注册 <code>TIME_SET</code> / <code>TIMEZONE_CHANGED</code> 等恢复入口，既有 RTC 闹钟不会由应用主动重算</td><td>变更时间相关代码时补 Receiver，并验证 DST/手动改时</td></tr>
+            <tr id="limit-screen-on-process" data-state="process-local-only"><td>亮屏补偿生命周期</td><td>ScreenOnReceiver 只在应用进程存活时存在，不能用亮屏启动已死亡进程</td><td>它是 LOCK 补偿，不是可靠调度入口</td></tr>
+            <tr id="limit-concurrent-entry" data-state="not-serialized"><td>多入口并发</td><td>保存、启动和 Receiver 任务没有全局串行化；后完成的系统调用可能覆盖先完成者</td><td>若新增高并发入口，应评估互斥、幂等与版本检查</td></tr>
+            <tr id="limit-destructive-migration" data-state="data-loss-accepted"><td>数据库升级</td><td>schema 变化允许破坏性重建</td><td>若要面向真实用户发布，必须先改迁移策略</td></tr>
+            <tr id="limit-no-instrumentation" data-state="manual-verification"><td>系统集成测试</td><td>AlarmManager、Receiver、WallpaperManager 没有自动仪器测试</td><td>相关改动必须真机回归</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="glossary" class="content-section">
+      <h2>术语速查</h2>
+      <div class="table-wrap">
+        <table id="table-glossary" data-table-kind="glossary">
+          <thead><tr><th>术语</th><th>在本项目中的通俗含义</th></tr></thead>
+          <tbody>
+            <tr id="term-domain"><td>壁纸域 / domain</td><td>壁纸目标的逻辑分区：<code>LOCK</code> 是锁屏，<code>SYSTEM</code> 是桌面；两条时间线互不冲突。</td></tr>
+            <tr id="term-resolve"><td><code>resolve</code></td><td>给定“当前分钟 + 全部规则 + 一个域”，选出至多一条当前命中规则；无命中返回 null。</td></tr>
+            <tr id="term-start-minutes"><td><code>startMinutes</code></td><td>从合法且有图的规则中提取去重后的开始分钟集合，供调度器选择下一次唤醒。</td></tr>
+            <tr id="term-pending-intent"><td><code>PendingIntent</code></td><td>交给 Android 系统保管的、未来可触发本应用 Receiver 的令牌；应用进程无需常驻。</td></tr>
+            <tr id="term-persisted-uri"><td>SAF 持久 URI 授权</td><td>用户选图后授予应用跨重启读取该 <code>content://</code> 地址的能力；不是图片副本。</td></tr>
+            <tr id="term-go-async"><td><code>goAsync()</code></td><td>让 BroadcastReceiver 在 <code>onReceive</code> 返回后短暂继续异步工作；最终必须调用 <code>finish()</code>，且仍有系统时间预算。</td></tr>
+            <tr id="term-elapsed-realtime"><td><code>elapsedRealtime</code></td><td>设备开机后的单调时钟，用来计算 30 分钟 LOCK 退避，不受用户修改墙上时间影响；进程重启会丢失本项目的内存退避状态。</td></tr>
+            <tr id="term-rtc-wakeup"><td><code>RTC_WAKEUP</code> / Doze</td><td>按真实日历时间唤醒设备的闹钟类型；Doze 是系统省电状态，精确能力不足时系统可延迟非精确闹钟。</td></tr>
+            <tr id="term-destructive-migration"><td><code>fallbackToDestructiveMigration</code></td><td>Room 找不到迁移脚本时删除旧库并重建；本项目当前会因此丢失全部规则。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="build-baseline" class="content-section">
+      <h2>构建、测试与源码入口</h2>
+      <div class="table-wrap">
+        <table id="table-build-baseline" data-table-kind="build-baseline">
+          <thead><tr><th>项目</th><th>当前值</th><th>事实位置</th></tr></thead>
+          <tbody>
+            <tr id="build-gradle" data-contract="gradle"><td>Gradle / AGP</td><td>8.9 / 8.5.2</td><td><code>gradle-wrapper.properties</code>、根 <code>build.gradle.kts</code></td></tr>
+            <tr id="build-kotlin" data-contract="kotlin"><td>Kotlin / KSP</td><td>1.9.24 / 1.9.24-1.0.20</td><td>根 <code>build.gradle.kts</code></td></tr>
+            <tr id="build-jvm" data-contract="jvm"><td>Gradle JDK / JVM target</td><td>JDK 21 / 17</td><td>Android Studio Gradle JVM、app 构建配置</td></tr>
+            <tr id="build-sdk" data-contract="android-sdk"><td>Android SDK</td><td>min 24 / target 34 / compile 34</td><td><code>app/build.gradle.kts</code></td></tr>
+            <tr id="build-tests" data-contract="tests"><td>JVM tests</td><td>19 个：ScheduleEngine 16 + TimeFormat 3</td><td><code>app/src/test</code></td></tr>
+            <tr id="build-lint" data-contract="lint"><td>最近门禁</td><td>test、lint、assemble 通过；Lint 0 error（工作区 2026-11-01）</td><td><code>app/build/reports</code> 与 Gradle 输出；代码变化后应重新执行</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>建议阅读顺序</h3>
+      <ol class="source-list">
+        <li><code>data/local/entities/ScheduleRuleEntity.kt</code></li>
+        <li><code>domain/scheduler/ScheduleEngine.kt</code></li>
+        <li><code>di/AppContainer.kt</code></li>
+        <li><code>scheduler/AlarmScheduler.kt</code></li>
+        <li><code>scheduler/WallpaperApplier.kt</code></li>
+        <li><code>ui/viewmodel/RuleEditorViewModel.kt</code></li>
+        <li><code>ui/viewmodel/HomeViewModel.kt</code></li>
+        <li><code>ui/screens/RuleEditorScreen.kt</code></li>
+        <li><code>AndroidManifest.xml</code></li>
+        <li><a href="应用流程文档.html">应用流程文档</a></li>
+      </ol>
+    </section>
+  </main>
+
+  <footer class="page-footer">Screensaver 当前实现的正式架构事实源</footer>
+  <script src="assets/dom-diagrams.js" defer></script>
+</body>
+</html>

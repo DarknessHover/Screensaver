@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>架构两讲 · 从 MVVM 到跨端映射 —— 以 Screensaver 项目为案例</title>
+<style>
+/* ============ 设计令牌 ============ */
+:root{
+  --paper:#F7F5F0;          /* 纸白 */
+  --paper-card:#FFFFFF;
+  --ink:#1F2421;            /* 墨 */
+  --ink-2:#4A534E;          /* 次级墨 */
+  --ink-3:#7C857F;          /* 弱化墨 */
+  --brand:#1E4638;          /* 深松绿（主色） */
+  --brand-2:#2E6B54;        /* 松绿（活跃） */
+  --brand-3:#E7EFE9;        /* 松绿淡底 */
+  --brand-4:#C3D8CD;        /* 松绿描边 */
+  --clay:#C0522B;           /* 陶土橙（强调） */
+  --clay-2:#FBEBE3;         /* 陶土淡底 */
+  --clay-3:#E8C4B2;         /* 陶土描边 */
+  --indigo:#2B4A7D;         /* 靛蓝（Web 侧） */
+  --indigo-2:#E8EEF7;       /* 靛蓝淡底 */
+  --indigo-3:#BFCCE0;       /* 靛蓝描边 */
+  --gold:#8A6D2F;           /* 旧金（线索） */
+  --gold-2:#F6EDD6;         /* 旧金淡底 */
+  --line:#DFDACE;           /* 分隔线 */
+  --line-soft:#EDE8DE;
+  --code-bg:#15211C;
+  --code-ink:#D8E0DA;
+  --code-key:#8FBF9F;
+  --code-str:#E0A458;
+  --code-com:#6F7F76;
+  --radius:14px;
+  --radius-sm:9px;
+  --mono:"JetBrains Mono","SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:16.5px;line-height:1.85;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+
+/* ============ 顶部进度条 ============ */
+#progress{
+  position:fixed;top:0;left:0;height:2.5px;width:0;
+  background:linear-gradient(90deg,var(--brand),var(--brand-2) 60%,var(--clay));
+  z-index:100;transition:width .1s linear;
+}
+
+/* ============ 布局 ============ */
+.wrap{max-width:1320px;margin:0 auto;padding:0 28px;display:flex;gap:44px;align-items:flex-start;}
+aside{
+  width:236px;flex:0 0 236px;position:sticky;top:0;padding:56px 0 80px;
+  max-height:100vh;overflow-y:auto;
+}
+aside::-webkit-scrollbar{width:5px;}
+aside::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
+main{flex:1 1 auto;min-width:0;padding:56px 0 100px;max-width:900px;}
+
+/* ============ 目录 ============ */
+.toc-label{
+  font-size:11px;letter-spacing:.16em;color:var(--ink-3);
+  text-transform:uppercase;margin-bottom:14px;font-weight:600;
+}
+.toc{list-style:none;margin:0;padding:0;border-left:1px solid var(--line);}
+.toc li{margin:0;}
+.toc a{
+  display:block;padding:6px 0 6px 15px;margin-left:-1px;
+  border-left:2px solid transparent;
+  color:var(--ink-2);text-decoration:none;font-size:13.5px;line-height:1.5;
+  transition:color .15s,border-color .15s;
+}
+.toc a:hover{color:var(--brand);}
+.toc a.active{color:var(--brand);border-left-color:var(--clay);font-weight:600;}
+.toc a.sub{padding-left:28px;font-size:12.5px;color:var(--ink-3);}
+
+/* ============ 封面 ============ */
+.hero{padding:24px 0 52px;border-bottom:1px solid var(--line);margin-bottom:56px;}
+.hero .kicker{
+  display:inline-block;font-size:11.5px;letter-spacing:.18em;color:var(--clay);
+  font-weight:700;margin-bottom:22px;
+}
+.hero h1{
+  font-size:44px;line-height:1.28;margin:0 0 10px;font-weight:700;letter-spacing:-.02em;
+}
+.hero h1 em{font-style:normal;color:var(--brand);}
+.hero .sub{
+  font-size:19px;color:var(--ink-2);font-weight:300;margin:0 0 30px;line-height:1.65;
+}
+.hero .meta{
+  display:flex;flex-wrap:wrap;gap:10px;font-size:12.5px;color:var(--ink-3);
+}
+.hero .meta span{
+  background:var(--paper-card);border:1px solid var(--line);
+  padding:4px 12px;border-radius:100px;
+}
+.hero .abstract{
+  margin-top:30px;padding:20px 24px;background:var(--brand-3);
+  border-radius:var(--radius);border-left:3px solid var(--brand);
+  font-size:15px;color:var(--ink-2);line-height:1.8;
+}
+.hero .abstract b{color:var(--brand);}
+
+/* ============ 标题体系 ============ */
+section{margin-bottom:76px;scroll-margin-top:40px;}
+.chapter-head{margin-bottom:34px;}
+.chapter-head .num{
+  font-size:12px;letter-spacing:.2em;color:var(--clay);font-weight:700;
+  display:block;margin-bottom:8px;
+}
+.chapter-head h2{
+  font-size:31px;margin:0 0 12px;font-weight:700;letter-spacing:-.015em;line-height:1.35;
+}
+.chapter-head .lead{
+  font-size:16.5px;color:var(--ink-2);margin:0;padding-left:16px;
+  border-left:2px solid var(--brand-4);line-height:1.8;
+}
+h3{
+  font-size:21px;margin:44px 0 14px;font-weight:650;letter-spacing:-.01em;
+  padding-bottom:9px;border-bottom:1px solid var(--line-soft);
+}
+h4{font-size:17px;margin:30px 0 10px;font-weight:650;color:var(--brand);}
+p{margin:0 0 16px;}
+strong{font-weight:650;color:var(--ink);}
+em.term{
+  font-style:normal;font-weight:600;color:var(--brand);
+  background:var(--gold-2);padding:1px 5px;border-radius:4px;
+}
+code.inline{
+  font-family:var(--mono);font-size:.86em;background:var(--brand-3);
+  color:var(--brand);padding:2px 6px;border-radius:5px;
+  border:1px solid var(--brand-4);
+}
+a{color:var(--brand-2);}
+
+/* ============ 图 ============ */
+figure{margin:30px 0 34px;}
+figure svg{display:block;width:100%;height:auto;}
+.fig-box{
+  background:var(--paper-card);border:1px solid var(--line);
+  border-radius:var(--radius);padding:22px 20px 14px;
+}
+figcaption{
+  font-size:13px;color:var(--ink-3);text-align:center;margin-top:12px;line-height:1.6;
+}
+figcaption b{color:var(--ink-2);font-weight:600;}
+
+/* ============ 表格 ============ */
+.tbl-wrap{margin:26px 0 30px;overflow-x:auto;}
+table{
+  width:100%;border-collapse:collapse;font-size:14.5px;background:var(--paper-card);
+  border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+}
+thead th{
+  background:var(--brand);color:#F2F5F3;text-align:left;
+  padding:11px 15px;font-weight:600;font-size:13.5px;letter-spacing:.02em;
+}
+tbody td{
+  padding:11px 15px;border-top:1px solid var(--line-soft);
+  vertical-align:top;line-height:1.7;
+}
+tbody tr:hover{background:#FCFBF8;}
+td code,th code{
+  font-family:var(--mono);font-size:.86em;color:var(--clay);
+  background:var(--clay-2);padding:1px 5px;border-radius:4px;
+}
+.tbl-title{
+  font-size:13px;color:var(--ink-3);margin-bottom:-14px;font-weight:600;
+  letter-spacing:.02em;
+}
+
+/* ============ 代码块 ============ */
+.code{margin:24px 0 28px;border-radius:var(--radius);overflow:hidden;
+  background:var(--code-bg);border:1px solid #0D1713;
+  box-shadow:0 2px 14px rgba(20,35,28,.14);
+}
+.code-bar{
+  display:flex;align-items:center;gap:8px;padding:8px 14px;
+  background:#0F1A15;border-bottom:1px solid #243029;
+}
+.code-dot{width:9px;height:9px;border-radius:50%;background:#31463C;}
+.code-file{
+  font-family:var(--mono);font-size:11.5px;color:#7D9086;margin-left:4px;
+  letter-spacing:.02em;
+}
+.code-lang{
+  margin-left:auto;font-family:var(--mono);font-size:10.5px;color:#6F8A7C;
+  border:1px solid #2C3F35;padding:1px 7px;border-radius:4px;letter-spacing:.08em;
+}
+.code pre{
+  margin:0;padding:16px 18px;overflow-x:auto;
+  font-family:var(--mono);font-size:13px;line-height:1.72;color:var(--code-ink);
+}
+.code pre::-webkit-scrollbar{height:7px;}
+.code pre::-webkit-scrollbar-thumb{background:#2E423A;border-radius:4px;}
+.k{color:var(--code-key);}      /* 关键字 */
+.s{color:var(--code-str);}      /* 字符串 */
+.c{color:var(--code-com);font-style:italic;} /* 注释 */
+.n{color:#C9D6CE;}              /* 数字/常量 */
+.f{color:#9FC4E8;}              /* 函数名 */
+.t{color:#A8CBBA;}              /* 类型 */
+
+/* ============ Callout ============ */
+.callout{
+  margin:24px 0;padding:16px 20px 16px 18px;border-radius:var(--radius-sm);
+  border-left:3px solid;font-size:15px;line-height:1.8;
+}
+.callout .ct{
+  display:block;font-size:12px;font-weight:700;letter-spacing:.1em;
+  margin-bottom:6px;text-transform:uppercase;
+}
+.callout p:last-child{margin-bottom:0;}
+.callout.key{background:var(--gold-2);border-color:var(--gold);}
+.callout.key .ct{color:var(--gold);}
+.callout.pit{background:var(--clay-2);border-color:var(--clay);}
+.callout.pit .ct{color:var(--clay);}
+.callout.web{background:var(--indigo-2);border-color:var(--indigo);}
+.callout.web .ct{color:var(--indigo);}
+.callout.rule{background:var(--brand-3);border-color:var(--brand);}
+.callout.rule .ct{color:var(--brand);}
+
+/* ============ 对照卡 ============ */
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:26px 0;}
+.duo > div{
+  background:var(--paper-card);border:1px solid var(--line);
+  border-radius:var(--radius);padding:18px 20px;
+}
+.duo h5{
+  margin:0 0 10px;font-size:14px;font-weight:700;letter-spacing:.03em;
+  display:flex;align-items:center;gap:8px;
+}
+.duo .badge{
+  font-size:10.5px;padding:2px 8px;border-radius:100px;
+  font-family:var(--mono);letter-spacing:.06em;
+}
+.duo .bad{background:var(--clay-2);color:var(--clay);border:1px solid var(--clay-3);}
+.duo .good{background:var(--brand-3);color:var(--brand);border:1px solid var(--brand-4);}
+.duo p{font-size:14.5px;color:var(--ink-2);margin:0 0 8px;}
+.duo p:last-child{margin:0;}
+
+/* ============ 引用 ============ */
+blockquote{
+  margin:26px 0;padding:4px 0 4px 22px;border-left:3px solid var(--clay);
+  color:var(--ink-2);font-size:16px;line-height:1.85;
+}
+blockquote cite{
+  display:block;margin-top:8px;font-size:13px;color:var(--ink-3);font-style:normal;
+}
+
+/* ============ 步骤流 ============ */
+.steps{counter-reset:st;margin:26px 0;list-style:none;padding:0;}
+.steps li{
+  counter-increment:st;position:relative;padding:0 0 20px 46px;
+  border-left:1px solid var(--line);margin-left:15px;
+}
+.steps li:last-child{border-left-color:transparent;padding-bottom:0;}
+.steps li::before{
+  content:counter(st);position:absolute;left:-15px;top:0;
+  width:30px;height:30px;border-radius:50%;background:var(--brand);
+  color:#F2F5F3;font-size:13px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);
+}
+.steps b{display:block;font-size:16px;margin-bottom:3px;color:var(--brand);}
+.steps span{font-size:15px;color:var(--ink-2);line-height:1.8;}
+
+/* ============ 术语卡 ============ */
+.gloss{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin:24px 0;}
+.gloss > div{
+  background:var(--paper-card);border:1px solid var(--line);
+  border-radius:var(--radius-sm);padding:14px 16px;
+}
+.gloss dt{font-weight:700;font-size:14.5px;color:var(--brand);margin-bottom:5px;}
+.gloss dd{margin:0;font-size:14px;color:var(--ink-2);line-height:1.7;}
+
+/* ============ 页尾 ============ */
+footer{
+  margin-top:80px;padding-top:28px;border-top:1px solid var(--line);
+  font-size:11.5px;color:var(--ink-3);line-height:1.9;
+}
+footer .f-main{display:flex;flex-wrap:wrap;gap:6px 20px;margin-bottom:10px;}
+footer b{color:var(--ink-2);font-weight:600;}
+footer .note{color:#9AA29C;font-size:11px;}
+
+/* ============ 响应式 ============ */
+@media (max-width:1080px){
+  aside{display:none;}
+  .wrap{padding:0 22px;}
+  main{max-width:100%;}
+  .hero h1{font-size:34px;}
+  .duo{grid-template-columns:1fr;}
+}
+@media print{
+  aside,#progress{display:none;}
+  body{background:#fff;font-size:11pt;}
+  section{page-break-inside:avoid;}
+  .code{box-shadow:none;}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<div class="wrap">
+
+<!-- ================= 侧边目录 ================= -->
+<aside>
+  <div class="toc-label">目录 · Contents</div>
+  <ul class="toc" id="toc">
+    <li><a href="#intro">序 · 小项目为什么装得下这些</a></li>
+    <li><a href="#ch1">一 · MVC 到底哪里疼</a></li>
+    <li><a href="#ch2">二 · MVVM：把状态搬出来</a></li>
+    <li><a href="#ch2-3" class="sub">2.3 状态容器三要素</a></li>
+    <li><a href="#ch2-4" class="sub">2.4 两个真实的坑</a></li>
+    <li><a href="#ch3">三 · 判据：代码该放哪一层</a></li>
+    <li><a href="#ch4">四 · 跨端：Web 上它叫什么</a></li>
+    <li><a href="#ch4-2" class="sub">4.2 两套响应式（核心）</a></li>
+    <li><a href="#ch4-3" class="sub">4.3 Web 多出的两层</a></li>
+    <li><a href="#ch5">五 · 后端同构：FastAPI</a></li>
+    <li><a href="#ch6">六 · 2026：Signals 的收敛</a></li>
+    <li><a href="#ch6-4" class="sub">6.4 React 为什么说不</a></li>
+    <li><a href="#ch7">七 · 收束：可带走的三条</a></li>
+    <li><a href="#appx">附录 · 术语与索引</a></li>
+  </ul>
+</aside>
+
+<!-- ================= 正文 ================= -->
+<main>
+
+<!-- ---------- 序 ---------- -->
+<header class="hero">
+  <span class="kicker">架构两讲 · ARCHITECTURE LECTURES</span>
+  <h1>从一个屏保项目出发：<br><em>MVVM 与跨端架构的通用思维</em></h1>
+  <p class="sub">以 Screensaver（Android · Kotlin · Compose）为活体标本，对照 MVC 讲清 MVVM，<br>再把同一套思想平移到前端与后端。</p>
+  <div class="meta">
+    <span>2026-09-01 编排</span>
+    <span>案例项目：Screensaver · 定时壁纸</span>
+    <span>技术栈：Kotlin 1.9.24 · Compose M3 · StateFlow · Room</span>
+    <span>读者基线：熟悉 MVC，初学 MVVM</span>
+  </div>
+  <div class="abstract">
+    <b>本教材想回答两个问题。</b>第一讲：MVVM 到底在解决什么——答案藏在 MVC 的四个病灶里，而不是藏在定义里。
+    第二讲：这套思想能不能带出移动端——答案是它早就在 Web 和后端住了二十年，只是换了名字；
+    真正需要你新学的东西，只有"Web 比移动端多出来的那两层"。
+  </div>
+</header>
+
+<section id="intro">
+  <div class="chapter-head">
+    <span class="num">序 · PROLOGUE</span>
+    <h2>一个小项目，为什么能装下这么多东西</h2>
+    <p class="lead">架构思想的价值不在项目大小，而在于"每一层是否都被真实需求逼出来过"。这个 3000 行量级的屏保项目，恰好每一层都逼出过一次。</p>
+  </div>
+
+  <p>你的 Screensaver 项目规模很小：一个首页、一个编辑器、一个数据库、几个系统 Receiver。但在这两讲里，我们会从它身上抽出<b>四条可以带走的通用能力</b>：</p>
+
+  <ol class="steps">
+    <li><b>看懂一个架构在解什么题</b><span>不再背"MVVM 是 Model-View-ViewModel"，而是问"它把 MVC 的哪个病灶切掉了"。学会这一条，以后遇到任何新架构都能自己拆解。</span></li>
+    <li><b>判断一段代码该放哪一层</b><span>这是架构落到日常开发里唯一真正的动作。分辨得出"这是纯计算 / 这是状态 / 这是系统能力 / 这是一帧的临时显示"，代码就不会烂。</span></li>
+    <li><b>把一套分层直觉跨端复用</b><span>Android、Web 前端、FastAPI 后端，看起来是三个世界，其实是同一张分层图换了三套名词。</span></li>
+    <li><b>识别"范式收敛"的信号</b><span>2026 年 Signals 在全行业收敛，是一次典型的范式级变化。能识别它，就能判断什么时候该跟进、什么时候该按兵不动。</span></li>
+  </ol>
+
+  <div class="callout rule">
+    <span class="ct">阅读约定</span>
+    <p>文中所有代码均取自 Screensaver 项目真实源码（已逐行核对），路径以项目根目录为基准。凡涉及行业现状的数据，均标注来源与口径；<b>不确定的一律标"待确认"，不补写</b>。</p>
+  </div>
+</section>
+
+<!-- ---------- 第一章 ---------- -->
+<section id="ch1">
+  <div class="chapter-head">
+    <span class="num">第一讲 · CHAPTER Ⅰ</span>
+    <h2>MVC 到底哪里疼</h2>
+    <p class="lead">先别急着学 MVVM 的定义。任何架构都是"止痛药"，你得先知道痛在哪，才知道那一刀为什么切在那里。</p>
+  </div>
+
+  <h3>1.1 MVC 只规定了三件事，但没规定它们住哪</h3>
+
+  <p>MVC 的划分其实非常朴素：<em class="term">Model</em> 是数据，<em class="term">View</em> 是显示，<em class="term">Controller</em> 是把用户动作翻译成数据操作的那段胶水。问题在于——<b>它只说了"有三个角色"，没说"这三个角色是否应该是三个对象"</b>。</p>
+
+  <p>在 Android 上，这个模糊被放大成了灾难：Activity 天生既是 View（它持有 <code class="inline">setContentView</code> 出来的那棵树），又是最自然的 Controller 落点（所有点击回调都注册在它身上）。于是它同时是三个角色。</p>
+
+  <figure>
+    <div class="fig-box">
+    <svg viewBox="0 0 900 452" role="img" aria-label="MVC 耦合与 MVVM 分层对比图">
+      <defs>
+        <marker id="ar" markerWidth="9" markerHeight="9" refX="8" refY="3.2" orient="auto">
+          <path d="M0,0 L8,3.2 L0,6.4 Z" fill="#4A534E"/>
+        </marker>
+        <marker id="arg" markerWidth="9" markerHeight="9" refX="8" refY="3.2" orient="auto">
+          <path d="M0,0 L8,3.2 L0,6.4 Z" fill="#2E6B54"/>
+        </marker>
+        <marker id="arc" markerWidth="9" markerHeight="9" refX="8" refY="3.2" orient="auto">
+          <path d="M0,0 L8,3.2 L0,6.4 Z" fill="#C0522B"/>
+        </marker>
+      </defs>
+
+      <!-- 左：MVC -->
+      <text x="40" y="30" font-size="15" font-weight="700" fill="#C0522B" font-family="sans-serif">MVC：三个角色挤在一个对象里</text>
+      <rect x="40" y="52" width="370" height="322" rx="14" fill="#FBEBE3" stroke="#C0522B" stroke-width="1.6" stroke-dasharray="7 5"/>
+      <text x="58" y="78" font-size="12.5" fill="#A8451F" font-family="sans-serif">Activity / 页面组件 —— 会随旋转、刷新而销毁</text>
+
+      <rect x="64" y="96" width="322" height="62" rx="9" fill="#fff" stroke="#E8C4B2"/>
+      <text x="82" y="122" font-size="13.5" font-weight="700" fill="#1F2421" font-family="sans-serif">① 渲染</text>
+      <text x="82" y="142" font-size="12" fill="#7C857F" font-family="sans-serif">findViewById / 改 DOM / 绑定监听器</text>
+
+      <rect x="64" y="172" width="322" height="62" rx="9" fill="#fff" stroke="#E8C4B2"/>
+      <text x="82" y="198" font-size="13.5" font-weight="700" fill="#1F2421" font-family="sans-serif">② 控制</text>
+      <text x="82" y="218" font-size="12" fill="#7C857F" font-family="sans-serif">点击处理 · 网络请求 · 业务判断</text>
+
+      <rect x="64" y="248" width="322" height="62" rx="9" fill="#fff" stroke="#E8C4B2"/>
+      <text x="82" y="274" font-size="13.5" font-weight="700" fill="#1F2421" font-family="sans-serif">③ 状态</text>
+      <text x="82" y="294" font-size="12" fill="#7C857F" font-family="sans-serif">成员变量存着"当前选中了谁"</text>
+
+      <!-- 纠缠箭头 -->
+      <path d="M370,127 C400,127 400,203 370,203" fill="none" stroke="#C0522B" stroke-width="1.5" marker-end="url(#arc)"/>
+      <path d="M96,203 C66,203 66,127 96,127" fill="none" stroke="#C0522B" stroke-width="1.5" marker-end="url(#arc)"/>
+      <path d="M370,203 C400,203 400,279 370,279" fill="none" stroke="#C0522B" stroke-width="1.5" marker-end="url(#arc)"/>
+      <path d="M96,279 C66,279 66,203 96,203" fill="none" stroke="#C0522B" stroke-width="1.5" marker-end="url(#arc)"/>
+      <text x="404" y="168" font-size="11.5" fill="#C0522B" font-family="sans-serif">互相直接引用</text>
+      <text x="404" y="184" font-size="11.5" fill="#C0522B" font-family="sans-serif">谁都能改谁</text>
+
+      <text x="40" y="404" font-size="12.5" fill="#4A534E" font-family="sans-serif">↑ 三者没有物理边界：Controller 直接改 View，View 顺手改状态</text>
+      <text x="40" y="424" font-size="12.5" fill="#4A534E" font-family="sans-serif">　  Activity 一销毁，②和③一起陪葬；想单测②，得先把整个页面跑起来</text>
+
+      <!-- 分隔 -->
+      <line x1="440" y1="30" x2="440" y2="424" stroke="#DFDACE" stroke-width="1"/>
+
+      <!-- 右：MVVM -->
+      <text x="470" y="30" font-size="15" font-weight="700" fill="#1E4638" font-family="sans-serif">MVVM：职责分层，状态独立存活</text>
+
+      <rect x="470" y="52" width="376" height="76" rx="10" fill="#E7EFE9" stroke="#2E6B54" stroke-width="1.6"/>
+      <text x="492" y="80" font-family="sans-serif"><tspan font-size="14" font-weight="700" fill="#1E4638">View</tspan><tspan font-size="12" font-weight="400" fill="#7C857F">　（Activity / @Composable）</tspan></text>
+      <text x="492" y="104" font-size="12.5" fill="#4A534E" font-family="sans-serif">只渲染 · 只把用户动作转发上去</text>
+
+      <rect x="470" y="168" width="376" height="92" rx="10" fill="#1E4638" stroke="#1E4638" stroke-width="1.6"/>
+      <text x="492" y="198" font-size="14" font-weight="700" fill="#F2F5F3" font-family="sans-serif">ViewModel</text>
+      <text x="492" y="222" font-size="12.5" fill="#C3D8CD" font-family="sans-serif">· 持有 UI 状态（StateFlow）</text>
+      <text x="492" y="242" font-size="12.5" fill="#C3D8CD" font-family="sans-serif">· 编排业务逻辑 · 生命周期比 View 长</text>
+
+      <rect x="470" y="300" width="376" height="66" rx="10" fill="#fff" stroke="#C3D8CD" stroke-width="1.6"/>
+      <text x="492" y="326" font-size="14" font-weight="700" fill="#1E4638" font-family="sans-serif">Model 层</text>
+      <text x="492" y="348" font-size="12.5" fill="#4A534E" font-family="sans-serif">Repository → Room / 网络 / 系统服务</text>
+
+      <!-- 单向箭头 -->
+      <path d="M512,128 L512,164" fill="none" stroke="#2E6B54" stroke-width="1.8" marker-end="url(#arg)"/>
+      <text x="524" y="152" font-size="11.5" fill="#2E6B54" font-family="sans-serif">事件</text>
+      <path d="M804,164 L804,128" fill="none" stroke="#2E6B54" stroke-width="1.8" marker-end="url(#arg)"/>
+      <text x="806" y="152" font-size="11.5" fill="#2E6B54" font-family="sans-serif" text-anchor="end">状态</text>
+
+      <path d="M512,260 L512,296" fill="none" stroke="#2E6B54" stroke-width="1.8" marker-end="url(#arg)"/>
+      <text x="524" y="286" font-size="11.5" fill="#2E6B54" font-family="sans-serif">请求</text>
+      <path d="M804,296 L804,260" fill="none" stroke="#2E6B54" stroke-width="1.8" marker-end="url(#arg)"/>
+      <text x="806" y="286" font-size="11.5" fill="#2E6B54" font-family="sans-serif" text-anchor="end">数据</text>
+
+      <text x="470" y="404" font-size="12.5" fill="#4A534E" font-family="sans-serif">↑ 每一层只能跟紧邻的一层说话，且方向固定</text>
+      <text x="470" y="424" font-size="12.5" fill="#4A534E" font-family="sans-serif">　  ViewModel 不认识任何 View 类 → 可以脱离界面直接单测</text>
+    </svg>
+    </div>
+    <figcaption><b>图 1-1</b>　左：MVC 在移动端/Web 早期的实际落地形态；右：MVVM 的分层与单向依赖。差别不在"多了个 ViewModel"，而在<b>箭头从网状变成了单向</b>。</figcaption>
+  </figure>
+
+  <h3>1.2 四个病灶，两端一模一样</h3>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 1-1　MVC 的四个病灶，在移动端与 Web 上的同构表现</div>
+    <table>
+      <thead><tr><th style="width:17%">病灶</th><th style="width:33%">Android 上的样子</th><th style="width:33%">Web 上的样子</th><th>根因</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>上帝类</b></td>
+          <td>Activity 里既有 <code>findViewById</code> 又有 <code>onClick</code> 又有数据库查询，轻松 2000 行</td>
+          <td>jQuery 时代 <code>$('#btn').click()</code> 里既改 DOM 又发请求 又算业务</td>
+          <td>View 与 Controller<br>没有物理边界</td>
+        </tr>
+        <tr>
+          <td><b>状态易失</b></td>
+          <td>旋转屏幕 → Activity 重建 → 成员变量全没</td>
+          <td>刷新页面 → JS 上下文重建 → 状态全没</td>
+          <td>状态寄存在<br>"会死的东西"上</td>
+        </tr>
+        <tr>
+          <td><b>不可单测</b></td>
+          <td>要测业务逻辑，得跑 instrumentation test 起模拟器</td>
+          <td>要测业务逻辑，得开浏览器 + 造 DOM 环境</td>
+          <td>逻辑与渲染<br>耦合在同一对象</td>
+        </tr>
+        <tr>
+          <td><b>同步靠人肉</b></td>
+          <td>改完数据要记得 <code>textView.text = ...</code>，漏一处就显示陈旧值</td>
+          <td>改完数据要记得 <code>el.innerHTML = ...</code>，漏一处就是 bug</td>
+          <td>状态→UI 的映射<br>由开发者手工维护</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout key">
+    <span class="ct">四个病灶的共同根因</span>
+    <p><b>状态被放在了一个"既会死、又还要负责画画"的对象上。</b>因为它会死，所以状态不安全；因为它在画画，所以逻辑没法脱离界面测试；因为两者混在一起，所以同步只能靠人记。</p>
+    <p>MVVM 的解法说穿了就一句：<b>把状态从这个对象里搬走，搬到一个不会随界面销毁而消失的地方。</b>剩下的所有设计（单向数据流、声明式 UI、状态容器）都是为了服务这一件事。</p>
+  </div>
+
+  <div class="callout web">
+    <span class="ct">顺带澄清一个常见误解</span>
+    <p>"MVVM" 这个词在 Web 上出现得比 Android 更早——AngularJS（2010 年）当年官网直接写的就是 MVVM。后来前端进入组件化时代，"ViewModel" 这个词指代不清了，社区才改叫<b>状态管理（State Management）</b>。<b>名字会过时，思想不会。</b>以后遇到陌生架构术语，先问"它在解 MVC 的哪个病灶"，比背定义快十倍。</p>
+  </div>
+</section>
+
+<!-- ---------- 第二章 ---------- -->
+<section id="ch2">
+  <div class="chapter-head">
+    <span class="num">第一讲 · CHAPTER Ⅰ</span>
+    <h2>MVVM：把状态从"会死的东西"里搬出来</h2>
+    <p class="lead">ViewModel 不是一个"放代码的文件夹"，它是一个有明确职责的、活得更久的状态宿主。这一章我们拿 Screensaver 的真实代码逐段对照。</p>
+  </div>
+
+  <h3>2.1 三层各自的确权</h3>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 2-1　MVVM 三层的职责边界（以 Screensaver 为例）</div>
+    <table>
+      <thead><tr><th style="width:14%">层</th><th style="width:30%">可以做什么</th><th style="width:28%">绝对不能做什么</th><th>本项目实例</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>View</b></td>
+          <td>渲染状态、收集用户动作、持有"只影响这一帧"的临时 UI 状态</td>
+          <td>直接读写数据库；自己算业务结论；长期持有数据</td>
+          <td><code>HomeScreen.kt</code><br><code>RuleEditorScreen.kt</code></td>
+        </tr>
+        <tr>
+          <td><b>ViewModel</b></td>
+          <td>持有 UI 状态、响应事件、调用下层、做异步编排</td>
+          <td>引用 View / Activity / Context；直接操作 Android 控件</td>
+          <td><code>HomeViewModel</code><br><code>RuleEditorViewModel</code></td>
+        </tr>
+        <tr>
+          <td><b>Model</b></td>
+          <td>提供数据、执行纯计算、封装系统能力</td>
+          <td>知道 UI 的存在</td>
+          <td><code>ScheduleEngine</code><br><code>ScreensaverRepository</code> / Room</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>这里有个容易忽略的关键点：<b>ViewModel 之所以能"活得更久"，不是因为它特殊，而是因为它被一个更外层的容器托着</b>。Android 里这个容器叫 <code class="inline">ViewModelStore</code>——屏幕旋转时 Activity 销毁重建，但 ViewModelStore 挂在"这次任务"上而不是"这个 Activity 实例"上，所以 ViewModel 活下来了；只有当 Activity 真正 <code class="inline">finish()</code>（用户彻底退出）时它才被清理。</p>
+
+  <h3>2.2 单向数据流：把网状箭头拉成两条</h3>
+
+  <p>MVC 的箭头是网状的（谁都能改谁），MVVM 把它压成两条方向固定的通道。这就是<em class="term">单向数据流（Unidirectional Data Flow, UDF）</em>。</p>
+
+  <figure>
+    <div class="fig-box">
+    <svg viewBox="0 0 760 268" role="img" aria-label="单向数据流环形图">
+      <defs>
+        <marker id="u1" markerWidth="10" markerHeight="10" refX="8" refY="3.4" orient="auto">
+          <path d="M0,0 L8,3.4 L0,6.8 Z" fill="#2E6B54"/>
+        </marker>
+        <marker id="u2" markerWidth="10" markerHeight="10" refX="8" refY="3.4" orient="auto">
+          <path d="M0,0 L8,3.4 L0,6.8 Z" fill="#C0522B"/>
+        </marker>
+      </defs>
+
+      <!-- 节点 -->
+      <rect x="288" y="16" width="184" height="54" rx="10" fill="#E7EFE9" stroke="#2E6B54" stroke-width="1.6"/>
+      <text x="380" y="40" text-anchor="middle" font-size="14" font-weight="700" fill="#1E4638" font-family="sans-serif">View</text>
+      <text x="380" y="59" text-anchor="middle" font-size="11.5" fill="#4A534E" font-family="sans-serif">渲染 + 转发动作</text>
+
+      <rect x="530" y="112" width="196" height="62" rx="10" fill="#1E4638" stroke="#1E4638"/>
+      <text x="628" y="140" text-anchor="middle" font-size="14" font-weight="700" fill="#F2F5F3" font-family="sans-serif">ViewModel</text>
+      <text x="628" y="160" text-anchor="middle" font-size="11.5" fill="#C3D8CD" font-family="sans-serif">处理事件 → 算出新状态</text>
+
+      <rect x="288" y="150" width="184" height="58" rx="10" fill="#FBEBE3" stroke="#C0522B" stroke-width="1.6"/>
+      <text x="380" y="174" text-anchor="middle" font-size="14" font-weight="700" fill="#A8451F" font-family="sans-serif">State（UiState）</text>
+      <text x="380" y="193" text-anchor="middle" font-size="11.5" fill="#7C857F" font-family="sans-serif">唯一可信源 · 只读</text>
+
+      <!-- 箭头：事件链路 -->
+      <path d="M472,43 C566,43 580,96 576,120" fill="none" stroke="#2E6B54" stroke-width="2" marker-end="url(#u1)"/>
+      <text x="528" y="62" font-size="12" font-weight="600" fill="#2E6B54" font-family="sans-serif">① 事件</text>
+      <path d="M628,174 L628,196 C628,236 512,250 478,214" fill="none" stroke="#2E6B54" stroke-width="2" marker-end="url(#u1)"/>
+      <text x="600" y="238" font-size="12" font-weight="600" fill="#2E6B54" font-family="sans-serif">② 写入新状态</text>
+      <path d="M288,179 C220,179 200,100 286,52" fill="none" stroke="#C0522B" stroke-width="2" marker-end="url(#u2)"/>
+      <text x="150" y="120" font-size="12" font-weight="600" fill="#C0522B" font-family="sans-serif">③ 状态流回</text>
+      <text x="150" y="138" font-size="11.5" fill="#7C857F" font-family="sans-serif">（自动重渲染）</text>
+
+      <text x="380" y="262" text-anchor="middle" font-size="12" fill="#7C857F" font-family="sans-serif">View 从不直接改 State，只"报告发生了什么"；改状态的权力只在 ViewModel 手里</text>
+    </svg>
+    </div>
+    <figcaption><b>图 2-1</b>　单向数据流。三条边方向固定、不可逆，因此"当前界面长什么样"永远是 State 的一个纯函数 —— 这是可预测性的来源。</figcaption>
+  </figure>
+
+  <p>对应到你的代码，这条链路就是：</p>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">app/src/main/java/com/screensaver/ui/screens/HomeScreen.kt</span>
+      <span class="code-lang">KOTLIN</span>
+    </div>
+<pre><code><span class="c">// ③ 状态流回：collect 把 StateFlow 接到 Compose，值一变自动重组</span>
+<span class="k">val</span> filteredRules     <span class="k">by</span> vm.filteredRules.collectAsStateWithLifecycle()
+<span class="k">val</span> currentRuleForTab <span class="k">by</span> vm.currentRuleForTab.collectAsStateWithLifecycle()
+<span class="k">val</span> selectedTab       <span class="k">by</span> vm.selectedTab.collectAsStateWithLifecycle()
+
+<span class="c">// ① 事件上报：View 不自己算，只把"用户点了哪个 Tab"告诉 ViewModel</span>
+DomainSegmentedTabs(
+    selected = selectedTab,
+    onSelect = vm::selectTab,          <span class="c">// 注意：传的是函数引用，不是把状态丢出去改</span>
+)</code></pre>
+  </div>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">…/ui/viewmodel/HomeViewModel.kt</span>
+      <span class="code-lang">KOTLIN</span>
+    </div>
+<pre><code><span class="c">/** 顶部域切换器当前所选项（默认屏保）。 */</span>
+<span class="k">private val</span> _selectedTab = MutableStateFlow(WallpaperDomain.LOCK)
+<span class="k">val</span> selectedTab: StateFlow&lt;WallpaperDomain&gt; = _selectedTab   <span class="c">// 对外只读</span>
+
+<span class="c">// ② 写入新状态：唯一的修改入口，且写的是"新值"而不是"改字段"</span>
+<span class="k">fun</span> <span class="f">selectTab</span>(tab: WallpaperDomain) {
+    <span class="k">if</span> (_selectedTab.value != tab) _selectedTab.value = tab
+}</code></pre>
+  </div>
+
+  <div class="callout rule">
+    <span class="ct">为什么非要 "_xxx 私有 + xxx 只读" 这套啰嗦写法</span>
+    <p>这不是 Kotlin 的繁文缛节，而是<b>把"修改权"变成一种编译期可检查的约束</b>：<code class="inline">MutableStateFlow</code> 留在 ViewModel 内部，外面拿到的 <code class="inline">StateFlow</code> 没有 <code class="inline">.value</code> 的 setter。View 层就算想违规改状态，IDE 直接报红。<br>架构约束一旦只靠"约定"，就一定会有人破例；能下沉到编译器检查的，才是真约束。</p>
+  </div>
+
+  <h3 id="ch2-3">2.3 状态容器三要素：为什么偏偏是 StateFlow</h3>
+
+  <p>把状态搬出来了，得找个容器装。<code class="inline">StateFlow</code> 能胜任，靠的是三个恰好都踩在需求上的特性：</p>
+
+  <figure>
+    <div class="fig-box">
+    <svg viewBox="0 0 800 208" role="img" aria-label="StateFlow 三要素示意图">
+      <g font-family="sans-serif">
+        <!-- 1 -->
+        <rect x="20" y="20" width="242" height="168" rx="12" fill="#E7EFE9" stroke="#C3D8CD"/>
+        <circle cx="52" cy="52" r="16" fill="#1E4638"/>
+        <text x="52" y="57" text-anchor="middle" font-size="14" font-weight="700" fill="#F2F5F3">1</text>
+        <text x="80" y="57" font-size="14.5" font-weight="700" fill="#1E4638">必须有初值</text>
+        <text x="42" y="92" font-size="12.5" fill="#4A534E">构造时就得给值：</text>
+        <text x="42" y="112" font-size="12.5" fill="#4A534E">MutableStateFlow(LOCK)</text>
+        <text x="42" y="140" font-size="12" fill="#7C857F">因为界面第一帧就得画点什么，</text>
+        <text x="42" y="158" font-size="12" fill="#7C857F">不能"还没数据"。</text>
+        <text x="42" y="176" font-size="12" fill="#7C857F">→ 天然消灭 loading 空窗判断</text>
+
+        <!-- 2 -->
+        <rect x="278" y="20" width="242" height="168" rx="12" fill="#FBEBE3" stroke="#E8C4B2"/>
+        <circle cx="310" cy="52" r="16" fill="#C0522B"/>
+        <text x="310" y="57" text-anchor="middle" font-size="14" font-weight="700" fill="#F2F5F3">2</text>
+        <text x="338" y="57" font-size="14.5" font-weight="700" fill="#A8451F">只保留最新值</text>
+        <text x="300" y="92" font-size="12.5" fill="#4A534E">（conflate 背压策略）</text>
+        <text x="300" y="118" font-size="12" fill="#7C857F">连发 10 个状态时，旧的 9 个</text>
+        <text x="300" y="136" font-size="12" fill="#7C857F">直接丢弃，订阅者只拿到最后</text>
+        <text x="300" y="154" font-size="12" fill="#7C857F">一个。</text>
+        <text x="300" y="176" font-size="12" fill="#7C857F">→ UI 状态本来就该如此</text>
+
+        <!-- 3 -->
+        <rect x="536" y="20" width="242" height="168" rx="12" fill="#F6EDD6" stroke="#E0CE9E"/>
+        <circle cx="568" cy="52" r="16" fill="#8A6D2F"/>
+        <text x="568" y="57" text-anchor="middle" font-size="14" font-weight="700" fill="#F7F5F0">3</text>
+        <text x="596" y="57" font-size="14.5" font-weight="700" fill="#8A6D2F">equals 去重</text>
+        <text x="558" y="92" font-size="12.5" fill="#4A534E">写入相同值不通知下游</text>
+        <text x="558" y="118" font-size="12" fill="#7C857F">data class 的结构化相等让</text>
+        <text x="558" y="136" font-size="12" fill="#7C857F">"值没变"能被自动识别，</text>
+        <text x="558" y="154" font-size="12" fill="#7C857F">省掉无意义重组。</text>
+        <text x="558" y="176" font-size="12" fill="#7C857F">→ 这是 data class 的真正价值</text>
+      </g>
+    </svg>
+    </div>
+    <figcaption><b>图 2-2</b>　StateFlow 的三个特性，每一个都恰好对应 UI 状态的一个刚需。这也解释了为什么 <code>RuleEditorState</code> 必须是 <code>data class</code>。</figcaption>
+  </figure>
+
+  <h4>派生状态：能算出来的，就不要存</h4>
+
+  <p>你的首页有个典型场景：<b>"当前选中的域" + "全部规则" → "该域的规则列表"</b>。这个列表是<b>派生</b>出来的，不该再存一份——存了就要同时维护两份，早晚不一致。</p>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">…/ui/viewmodel/HomeViewModel.kt　（派生状态与订阅共享）</span>
+      <span class="code-lang">KOTLIN</span>
+    </div>
+<pre><code><span class="c">// 源状态：DB 流 → 转成 StateFlow，多个订阅者共享同一条上游（只查一次库）</span>
+<span class="k">private val</span> rules: StateFlow&lt;List&lt;ScheduleRuleEntity&gt;&gt; = repository.observeRules()
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(<span class="n">5000</span>), emptyList())
+
+<span class="c">// 派生状态：过滤 + 排序，不落库、不缓存，随源变化自动重算</span>
+<span class="k">val</span> filteredRules: StateFlow&lt;List&lt;ScheduleRuleEntity&gt;&gt; =
+    combine(rules, _selectedTab) { all, tab -&gt;
+        all.asSequence()
+            .filter { it.wallpaperDomain == tab }
+            .sortedBy { it.startMinute }
+            .toList()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(<span class="n">5000</span>), emptyList())</code></pre>
+  </div>
+
+  <div class="callout key">
+    <span class="ct">WhileSubscribed(5000) 里的 5000 是什么</span>
+    <p>它的含义是：<b>最后一个订阅者消失后，再等 5 秒才停掉上游流</b>。这个"宽限期"是为屏幕旋转准备的——旋转时旧的 Composable 销毁（订阅者归零）、新的立刻重建（订阅者回来），中间通常不到 1 秒。如果宽限期是 0，每次旋转都会真的断开数据库流再重连，白白浪费一次查询。<br><b>判断标准：这个数值应该略大于"界面销毁到重建"的耗时。</b></p>
+  </div>
+
+  <h3 id="ch2-4">2.4 两个真实的坑（都写在你的代码里）</h3>
+
+  <h4>坑一：一次性事件放进 StateFlow，会重放</h4>
+
+  <p>"保存成功"这种提示，是<b>一次性事件</b>——它不是一个"持续为真的状态"。如果把它塞进 <code class="inline">StateFlow</code>：屏幕一旋转，Composable 重建并重新 collect，那个值还在，于是 Toast 又弹了一遍。</p>
+
+  <div class="duo">
+    <div>
+      <h5><span class="badge bad">错误</span> 事件当成状态存</h5>
+      <p>把提示塞进 <code>UiState</code> 的一个字段，界面重建时它还在 → 提示重复弹出；而且"提示"这个东西在业务上根本不是状态。</p>
+    </div>
+    <div>
+      <h5><span class="badge good">正解</span> 双通道：状态 + 事件</h5>
+      <p>状态走 <code>StateFlow</code>（可重放，本来就该重放）；一次性事件走 <code>SharedFlow</code>（发出即消费，不留存）。</p>
+    </div>
+  </div>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">…/ui/viewmodel/RuleEditorViewModel.kt　（双通道：状态流 + 事件流）</span>
+      <span class="code-lang">KOTLIN</span>
+    </div>
+<pre><code><span class="c">// 通道 A：持续状态 —— 界面重建后要原样恢复，所以可重放</span>
+<span class="k">private val</span> _state = MutableStateFlow(RuleEditorState())
+<span class="k">val</span> state: StateFlow&lt;RuleEditorState&gt; = _state
+
+<span class="c">// 通道 B：一次性提示事件（成功/冲突/失败原因），由界面弹 Snackbar</span>
+<span class="c">// extraBufferCapacity=4：允许在无人订阅时先攒着，避免 emit 挂起丢失</span>
+<span class="k">private val</span> _events = MutableSharedFlow&lt;String&gt;(extraBufferCapacity = <span class="n">4</span>)
+<span class="k">val</span> events: SharedFlow&lt;String&gt; = _events
+
+<span class="c">// 使用处：校验不通过时发事件，而不是改状态</span>
+<span class="k">val</span> conflict = <span class="f">findConflict</span>(s.startMinute, s.endMinute)
+<span class="k">if</span> (conflict != <span class="k">null</span>) {
+    _events.<span class="f">tryEmit</span>(conflict)   <span class="c">// 注意用 tryEmit，不挂起、不丢事件</span>
+    <span class="k">return</span>@launch
+}
+<span class="k">if</span> (s.selectedImageUri == <span class="k">null</span>) {
+    _events.<span class="f">tryEmit</span>(<span class="s">"请先为规则选择一张素材图片"</span>)
+    <span class="k">return</span>@launch
+}</code></pre>
+  </div>
+
+  <h4 id="ch2-5b">坑二：ViewModel 感知不到 ON_RESUME</h4>
+
+  <p>ViewModel 的生命周期比 View 长，这是优点；但代价是——<b>它对"界面重新回到前台"这件事一无所知</b>。它只有 <code class="inline">onCleared()</code>，没有 <code class="inline">onResume()</code>。</p>
+
+  <p>你的项目里正好踩到了这个坑，而且解法就写在 <code class="inline">HomeScreen.kt</code> 里，注释写得非常清楚：</p>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">…/ui/screens/HomeScreen.kt　（由 View 把生命周期事件通知给 ViewModel）</span>
+      <span class="code-lang">KOTLIN</span>
+    </div>
+<pre><code><span class="k">val</span> lifecycleOwner = LocalLifecycleOwner.current
+DisposableEffect(lifecycleOwner) {
+    <span class="k">val</span> observer = LifecycleEventObserver { _, event -&gt;
+        <span class="k">if</span> (event == Lifecycle.Event.ON_RESUME) {
+            vm.<span class="f">refreshExactAlarmStatus</span>()
+            <span class="c">// 暖启动（从最近任务/点图标恢复）不走 onCreate，</span>
+            <span class="c">// 必须在此重算"当前生效规则"，否则 Hero/生效中标签停留在上次前台时刻的旧状态</span>
+            vm.<span class="f">recomputeCurrent</span>()
+        }
+    }
+    lifecycleOwner.lifecycle.<span class="f">addObserver</span>(observer)
+    onDispose { lifecycleOwner.lifecycle.<span class="f">removeObserver</span>(observer) }
+}</code></pre>
+  </div>
+
+  <div class="callout pit">
+    <span class="ct">这个坑的通用形态</span>
+    <p>凡是"从系统设置页返回""从别的 App 切回来"这类场景，ViewModel 都需要被通知。<b>通用解法：由 View 侧用生命周期观察者把事件转发给 ViewModel。</b>
+    <code class="inline">DisposableEffect</code> 的 <code class="inline">onDispose</code> 负责注销——忘了注销就是内存泄漏，这一对必须成对出现。</p>
+  </div>
+</section>
+
+<!-- ---------- 第三章 ---------- -->
+<section id="ch3">
+  <div class="chapter-head">
+    <span class="num">第一讲 · CHAPTER Ⅰ</span>
+    <h2>判据：这段代码到底该放哪一层</h2>
+    <p class="lead">架构知识落到日常，真正的动作只有一个：新建一个函数时，知道它该放在哪个文件。下面这张判断表可以直接当 checklist 用。</p>
+  </div>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 3-1　分层归属判断表（左列是"这段代码的特征"，右列是归属）</div>
+    <table>
+      <thead><tr><th style="width:42%">如果这段代码…</th><th style="width:20%">归属</th><th>理由 / 本项目实例</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>读写数据库、网络、文件系统</td>
+          <td><b>Repository</b></td>
+          <td>数据源门面，上层不该知道数据从哪来。<code>ScreensaverRepository</code></td>
+        </tr>
+        <tr>
+          <td>纯计算：无 IO、无 Android 框架依赖、输入输出都确定</td>
+          <td><b>domain 纯函数</b></td>
+          <td>可在 JVM 上直接单测，不需要 Robolectric。<code>ScheduleEngine.resolve()</code> —— 项目里 15 个单测全压在这一层</td>
+        </tr>
+        <tr>
+          <td>要跨界面存活、要被多个 UI 读取、要响应事件</td>
+          <td><b>ViewModel</b></td>
+          <td>状态宿主。<code>HomeViewModel</code> / <code>RuleEditorViewModel</code></td>
+        </tr>
+        <tr>
+          <td>只影响当前这一帧的显示（弹窗开关、展开收起、输入框焦点）</td>
+          <td><b>View 内 remember</b></td>
+          <td>生命周期就该跟着 UI；放进 ViewModel 反而是污染全局状态</td>
+        </tr>
+        <tr>
+          <td>需要 Context / 系统服务（AlarmManager、WallpaperManager）</td>
+          <td><b>系统封装层</b></td>
+          <td>ViewModel 持 Context 会泄漏。<code>AlarmScheduler</code> / <code>WallpaperApplier</code></td>
+        </tr>
+        <tr>
+          <td>把上面这些装配起来、决定谁依赖谁</td>
+          <td><b>DI 容器</b></td>
+          <td>手动 DI。<code>AppContainer</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>3.1 实例解剖：为什么 ScheduleEngine 是 <code>object</code> 而不是 class</h3>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">app/src/main/java/com/screensaver/domain/scheduler/ScheduleEngine.kt</span>
+      <span class="code-lang">KOTLIN</span>
+    </div>
+<pre><code><span class="c">/**
+ * 调度引擎：纯函数，无 Android 运行时时依赖（操作的是纯 Kotlin 实体），便于单测。
+ *
+ * 模型（对齐需求/架构文档的"剪开拉直"）：
+ *  - 一天 = 0:00 → 24:00 的一条直线，被切成 0..1439 的"当天第几分钟"。
+ *  - 一条规则永远不跨午夜（跨午夜由编辑器拆成两条存储），故 endMinute 永远 &gt; startMinute。
+ *  - 因此命中判断只有【一种】：start &lt;= now &lt; end，无需任何 wrap-around 分支。
+ */</span>
+<span class="k">object</span> ScheduleEngine {          <span class="c">// ← object：无状态，天然单例，不需要注入</span>
+
+    <span class="k">fun</span> <span class="f">resolve</span>(
+        now: Int,
+        rules: List&lt;ScheduleRuleEntity&gt;,
+        domain: WallpaperDomain,
+    ): ScheduleRuleEntity? {
+        <span class="k">return</span> rules.filter {
+            it.wallpaperDomain == domain &amp;&amp;
+                it.startMinute &lt;= now &amp;&amp; now &lt; it.endMinute
+        }.<span class="f">minByOrNull</span> { it.startMinute }
+    }
+}</code></pre>
+  </div>
+
+  <p>这段代码里藏着三个可以立刻复用的设计决策：</p>
+
+  <ol class="steps">
+    <li><b>用 <code>object</code> 而不是 <code>class</code></b><span>无状态的工具用 object，省掉一次依赖注入。<b>判断标准：如果它不需要被替换成假实现来测试，就不必做成可注入的类。</b></span></li>
+    <li><b>用"剪开拉直"消灭分支</b><span>把"一天"建模成一条 0..1439 的直线，规定规则不跨午夜（跨午夜由编辑器拆成两条存储）。于是命中判断只剩下 <code>start &lt;= now &lt; end</code> 一种情况，<b>不需要任何跨午夜的 wrap-around 分支</b>。<br>这是数据建模的威力：约束加在存储层，逻辑层就干净了。</span></li>
+    <li><b>返回 <code>null</code> 而不是"默认规则"</b><span>注释写得很明确："若无命中的规则则返回 null —— 调用方据此<b>不干预</b>，保持该域已有壁纸"。<b>用 null 表达"无"这个业务语义，比用哨兵值安全得多。</b></span></li>
+  </ol>
+
+  <div class="callout key">
+    <span class="ct">记住这句话</span>
+    <p><b>"能算出来的就不要存，能约束在存储层的就不要留给逻辑层。"</b>你在 Screensaver 里反复做的这两件事（派生状态用 combine、跨午夜在编辑器拆条），就是架构思维的具体形态。</p>
+  </div>
+</section>
+
+<!-- ---------- 第四章 ---------- -->
+<section id="ch4">
+  <div class="chapter-head">
+    <span class="num">第二讲 · CHAPTER Ⅱ</span>
+    <h2>跨端：这套思想在 Web 上叫什么</h2>
+    <p class="lead">答案是——全都存在，只是换了一批名字。这一章先给映射表，再讲一个几乎没人告诉你的关键区分。</p>
+  </div>
+
+  <h3>4.1 概念映射总表</h3>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 4-1　Screensaver（Android）↔ Web 前端 概念映射</div>
+    <table>
+      <thead><tr><th style="width:30%">Screensaver 里的角色</th><th style="width:32%">Web 对应物</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>@Composable</code> 屏幕函数</td><td>组件（React FC / Vue SFC）</td><td>只渲染、只转发事件</td></tr>
+        <tr><td><code>ViewModel</code></td><td><b>store</b>（Pinia / Zustand / Redux）<br>或 composable <code>useXxx()</code></td><td>状态宿主 + 业务编排</td></tr>
+        <tr><td><code>StateFlow&lt;UiState&gt;</code></td><td>store 里的 state（<code>ref</code> / <code>create()</code>）</td><td>有初值、只存最新、自动去重</td></tr>
+        <tr><td><code>SharedFlow</code>（一次性事件）</td><td>回调 props / 事件总线 / <code>toast()</code></td><td>同样"别塞进 state，会重放"</td></tr>
+        <tr><td><code>collectAsStateWithLifecycle()</code></td><td><code>useStore()</code> / <code>storeToRefs()</code></td><td>订阅 + 卸载自动退订</td></tr>
+        <tr><td><code>ScheduleEngine</code>（纯函数）</td><td><code>utils/</code> 或 <code>lib/</code> 纯函数模块</td><td>无副作用、可单测</td></tr>
+        <tr><td><code>ScreensaverRepository</code></td><td><code>api/client.ts</code> + repository 层</td><td>数据源门面</td></tr>
+        <tr><td><code>Room</code> / <code>AlarmManager</code></td><td>HTTP API / localStorage / IndexedDB</td><td>外部依赖</td></tr>
+        <tr><td><code>AppContainer</code>（手动 DI）</td><td>DI 容器 / React Context Provider</td><td>装配</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p><b>一行都没有漏。</b>这不是巧合——因为这套分层解的是同一道题。</p>
+
+  <h3 id="ch4-2">4.2 关键洞察：你学的是"两套响应式"，只是没人这么告诉你</h3>
+
+  <p>这是本讲最重要的一层抽象，也是理解 2026 年前端格局的钥匙。你在 Screensaver 里其实已经接触了<b>两套机制完全不同</b>的响应式，只是它们长得像，没人给你拆开讲：</p>
+
+  <div class="duo">
+    <div>
+      <h5><span class="badge bad">粗粒度</span> StateFlow —— 状态容器</h5>
+      <p>需要<b>显式</b> <code>collect</code> 才能拿到变化；跨组件、跨层共享；有初值；只存最新；<code>equals</code> 去重。</p>
+      <p style="font-size:13px;color:var(--ink-3)">订阅关系是"你写了才算"，粒度是整个对象。</p>
+    </div>
+    <div>
+      <h5><span class="badge good">细粒度</span> mutableStateOf —— 信号</h5>
+      <p><b>不用订阅，谁读它谁就自动被登记为依赖</b>；它变了，只重算真正读过它的那一小块。</p>
+      <p style="font-size:13px;color:var(--ink-3)">依赖图是运行时自动长出来的，粒度是单个值。</p>
+    </div>
+  </div>
+
+  <figure>
+    <div class="fig-box">
+    <svg viewBox="0 0 860 430" role="img" aria-label="粗粒度 store 层与细粒度 signal 层的双通道结构图">
+      <defs>
+        <marker id="d1" markerWidth="10" markerHeight="10" refX="8" refY="3.4" orient="auto">
+          <path d="M0,0 L8,3.4 L0,6.8 Z" fill="#8A6D2F"/>
+        </marker>
+      </defs>
+      <g font-family="sans-serif">
+
+        <!-- 标题列 -->
+        <text x="24" y="24" font-size="13" font-weight="700" fill="#7C857F">Android（本项目）</text>
+        <text x="470" y="24" font-size="13" font-weight="700" fill="#7C857F">Web 前端</text>
+
+        <!-- ===== 上层：store ===== -->
+        <text x="24" y="58" font-size="11.5" font-weight="700" fill="#8A6D2F" letter-spacing="1">上层 · 粗粒度状态容器（跨组件共享，显式订阅）</text>
+        <rect x="24" y="70" width="330" height="96" rx="12" fill="#F6EDD6" stroke="#E0CE9E" stroke-width="1.6"/>
+        <text x="44" y="96" font-size="14.5" font-weight="700" fill="#8A6D2F">StateFlow&lt;UiState&gt;</text>
+        <text x="44" y="118" font-size="12" fill="#4A534E">显式 collect · 有初值 · 只留最新 · equals 去重</text>
+        <text x="44" y="140" font-size="11.5" fill="#7C857F">HomeViewModel.filteredRules</text>
+        <text x="44" y="156" font-size="11.5" fill="#7C857F">RuleEditorViewModel.state</text>
+
+        <rect x="470" y="70" width="366" height="96" rx="12" fill="#F6EDD6" stroke="#E0CE9E" stroke-width="1.6"/>
+        <text x="490" y="96" font-size="14.5" font-weight="700" fill="#8A6D2F">store</text>
+        <text x="490" y="118" font-size="12" fill="#4A534E">Pinia · Zustand · Redux · Svelte store</text>
+        <text x="490" y="140" font-size="11.5" fill="#7C857F">useStore() / storeToRefs() 订阅</text>
+        <text x="490" y="156" font-size="11.5" fill="#7C857F">生命周期：卸载自动退订</text>
+
+        <!-- ===== 桥 ===== -->
+        <rect x="150" y="196" width="560" height="52" rx="26" fill="#1E4638"/>
+        <text x="430" y="218" text-anchor="middle" font-size="13" font-weight="700" fill="#C3D8CD">桥（adapter）：把粗粒度流接到细粒度渲染层</text>
+        <text x="430" y="238" text-anchor="middle" font-size="12" fill="#8FBF9F">collectAsStateWithLifecycle()　　　≡　　　useStore() / storeToRefs()</text>
+
+        <path d="M189,166 L189,192" stroke="#8A6D2F" stroke-width="2" marker-end="url(#d1)"/>
+        <path d="M671,166 L671,192" stroke="#8A6D2F" stroke-width="2" marker-end="url(#d1)"/>
+        <path d="M189,252 L189,308" stroke="#8A6D2F" stroke-width="2" marker-end="url(#d1)"/>
+        <path d="M671,252 L671,308" stroke="#8A6D2F" stroke-width="2" marker-end="url(#d1)"/>
+
+        <!-- ===== 下层：signal ===== -->
+        <text x="24" y="300" font-size="11.5" font-weight="700" fill="#2E6B54" letter-spacing="1">下层 · 细粒度信号（自动追踪依赖，只更新读到它的那一处）</text>
+        <rect x="24" y="312" width="330" height="96" rx="12" fill="#E7EFE9" stroke="#2E6B54" stroke-width="1.6"/>
+        <text x="44" y="338" font-size="14.5" font-weight="700" fill="#1E4638">mutableStateOf</text>
+        <text x="44" y="360" font-size="12" fill="#4A534E">Compose snapshot state · 读即订阅</text>
+        <text x="44" y="382" font-size="11.5" fill="#7C857F">remember { mutableStateOf(false) }</text>
+        <text x="44" y="398" font-size="11.5" fill="#7C857F">（弹窗开关等"一帧的临时状态"）</text>
+
+        <rect x="470" y="312" width="366" height="96" rx="12" fill="#E7EFE9" stroke="#2E6B54" stroke-width="1.6"/>
+        <text x="490" y="338" font-size="14.5" font-weight="700" fill="#1E4638">Signal / Runes / ref</text>
+        <text x="490" y="360" font-size="12" fill="#4A534E">Vue ref · computed　Svelte $state　Solid createSignal</text>
+        <text x="490" y="382" font-size="11.5" fill="#7C857F">Angular signal()　Preact signal()</text>
+        <text x="490" y="398" font-size="11.5" fill="#7C857F">依赖图在读取时自动生成，无需声明</text>
+
+        <text x="24" y="426" font-size="11.5" fill="#7C857F">同一个思想被独立发明两遍：Google 做 Compose snapshot，Web 各框架做 Signals —— 形态最终收敛一致。</text>
+      </g>
+    </svg>
+    </div>
+    <figcaption><b>图 4-1</b>　双通道结构。<b>ViewModel 层 = Web 的 store 层；Compose 的响应式底层 = Web 的 Signals。</b>中间的"桥"两边名字不同，职责完全一样。</figcaption>
+  </figure>
+
+  <div class="callout key">
+    <span class="ct">这一层抽象能帮你省掉多少事</span>
+    <p>想通了这张图，以后看到任何 Web 框架的新名词，你只需要问两个问题：<br>
+    ① <b>它属于上层（共享状态容器）还是下层（细粒度信号）？</b><br>
+    ② <b>它的"桥"长什么样</b>（怎么把上层接到渲染）？<br>
+    答完这两个问题，剩下的都是语法差异。<code>Pinia</code> 就是 StateFlow 的亲戚，<code>ref()</code> 就是 mutableStateOf 的亲戚——不需要重新学一遍概念。</p>
+  </div>
+
+  <h3 id="ch4-3">4.3 Web 比移动端多出来的两层</h3>
+
+  <p>如果你直接把 Android MVVM 平移到 Web，会漏掉两块。而这两块，恰恰是前端架构近五年最主要的演进方向。</p>
+
+  <h4>多出来的一层：服务端状态（Server State）</h4>
+
+  <p>移动端也有网络数据，但 Web 的数据获取场景重得多（分页、轮询、竞态、乐观更新、缓存失效）。社区早年的教训是把服务端数据塞进 store，结果每个页面都要手写 loading / error / 重试 / 缓存 / 失效那一整套。</p>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 4-2　客户端状态 vs 服务端状态（这是前端最重要的一次"分类"）</div>
+    <table>
+      <thead><tr><th style="width:16%"></th><th style="width:34%">客户端状态 Client State</th><th style="width:34%">服务端状态 Server State</th><th>归属差异的意义</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>例子</b></td>
+          <td>当前选中 Tab、弹窗开关、表单草稿</td>
+          <td>规则列表、用户资料、订单数据</td>
+          <td rowspan="4" style="vertical-align:middle">一旦分清，<b>缓存、重试、失效、乐观更新这一整套复杂度就被隔离到一个专门的库里</b>，store 只管真正属于客户端的那一小撮状态。<br><br>Web 侧由 <code>TanStack Query</code> / <code>SWR</code> / Nuxt 的 <code>useAsyncData</code> 承担。</td>
+        </tr>
+        <tr><td><b>谁拥有</b></td><td>这个前端应用</td><td><b>远端服务器</b></td></tr>
+        <tr><td><b>会过期吗</b></td><td>不会，改了就是改了</td><td><b>会</b>，别人可能已经改了</td></tr>
+        <tr><td><b>需要什么</b></td><td>一个变量就够</td><td>缓存策略 + 失效 + 重试 + 竞态处理</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout web">
+    <span class="ct">一个关键的边界声明</span>
+    <p><b>Signals 社区明确声明：我们不解决数据获取、缓存失效、乐观更新。</b><br>
+    所以别以为学了 Signals 就万事大吉——它只解决图 4-1 的<b>下层</b>那一格，服务端状态还得靠 TanStack Query 这类库。这也是"MVVM 思想进入 Web"时最需要补的一课。</p>
+  </div>
+
+  <h4>多出来的另一"层"：URL 也是状态</h4>
+
+  <p>Web 的路由是可分享、可回退、可收藏的。所以"当前在哪一屏""筛选条件是什么"这类状态，在 Web 侧的正确归属经常是 <b>URL 参数</b>而不是 store。</p>
+
+  <p>有意思的是——你今天刚修的那个 bug，用的就是同一个思路：</p>
+
+  <div class="code">
+    <div class="code-bar">
+      <span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span>
+      <span class="code-file">…/ui/MainActivity.kt　（把"当前在哪个域"编码进路由，跨界面传递状态）</span>
+      <span class="code-lang">KOTLIN</span>
+    </div>
+<pre><code>composable(
+    route = <span class="s">"editor/{ruleId}?domain={domain}"</span>,      <span class="c">// ← 状态编码进路由</span>
+    arguments = listOf(
+        navArgument(<span class="s">"ruleId"</span>) { type = NavType.LongType; defaultValue = -<span class="n">1L</span> },
+        navArgument(<span class="s">"domain"</span>) {
+            type = NavType.StringType
+            defaultValue = WallpaperDomain.SYSTEM.name    <span class="c">// 缺省值保证旧路由仍可匹配</span>
+        }
+    ),
+) { backStack -&gt;
+    <span class="k">val</span> id = backStack.arguments?.<span class="f">getLong</span>(<span class="s">"ruleId"</span>)?.<span class="f">takeIf</span> { it &gt;= <span class="n">0L</span> }
+    <span class="c">// 新建规则的预选域（继承首页当前 Tab）；编辑已有规则时忽略此参数</span>
+    <span class="k">val</span> domain = backStack.arguments
+        ?.<span class="f">getString</span>(<span class="s">"domain"</span>)
+        ?.<span class="k">let</span> { d -&gt; runCatching { WallpaperDomain.<span class="f">valueOf</span>(d) }.<span class="f">getOrNull</span>() }
+        ?: WallpaperDomain.SYSTEM
+    RuleEditorScreen(nav, id, domain, viewModel&lt;RuleEditorViewModel&gt;(factory = factory))
+}</code></pre>
+  </div>
+
+  <div class="callout rule">
+    <span class="ct">可复用的工程细节</span>
+    <p>注意 <code class="inline">runCatching { valueOf(d) }.getOrNull()</code> 这一手：<b>从外部传入的枚举字符串一律要兜底</b>。路由参数可能来自旧版本的 deep link、手写的 adb 命令、甚至未来的自己。<code class="inline">valueOf</code> 遇到非法值会直接抛异常导致崩溃，加一层兜底就变成了"回退到默认值"。<br>这类"边界防御"是中级和初级的分水岭之一。</p>
+  </div>
+</section>
+
+<!-- ---------- 第五章 ---------- -->
+<section id="ch5">
+  <div class="chapter-head">
+    <span class="num">第二讲 · CHAPTER Ⅱ</span>
+    <h2>后端同构：你的 FastAPI 就是同一张图</h2>
+    <p class="lead">你会 FastAPI —— 这是最好的锚点。把两端并排放，你会发现连层数都对得上。</p>
+  </div>
+
+  <figure>
+    <div class="fig-box">
+    <svg viewBox="0 0 860 468" role="img" aria-label="Android 与 FastAPI 分层对照塔">
+      <g font-family="sans-serif">
+        <text x="140" y="22" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1E4638">Screensaver（Android）</text>
+        <text x="720" y="22" text-anchor="middle" font-size="13.5" font-weight="700" fill="#2B4A7D">FastAPI（后端）</text>
+
+        <!-- 行 1 -->
+        <rect x="30" y="38" width="220" height="52" rx="9" fill="#E7EFE9" stroke="#2E6B54"/>
+        <text x="140" y="62" text-anchor="middle" font-size="13" font-weight="700" fill="#1E4638">@Composable 屏幕</text>
+        <text x="140" y="80" text-anchor="middle" font-size="11" fill="#4A534E">渲染 · 转发事件</text>
+        <text x="420" y="70" text-anchor="middle" font-size="16" font-weight="700" fill="#8A6D2F">≡</text>
+        <rect x="610" y="38" width="220" height="52" rx="9" fill="#E8EEF7" stroke="#2B4A7D"/>
+        <text x="720" y="62" text-anchor="middle" font-size="13" font-weight="700" fill="#2B4A7D">@router.get()</text>
+        <text x="720" y="80" text-anchor="middle" font-size="11" fill="#4A534E">协议转换 · 参数校验</text>
+        <text x="440" y="104" text-anchor="middle" font-size="11" fill="#7C857F">只做协议转换，不含业务逻辑</text>
+
+        <!-- 行 2 -->
+        <rect x="30" y="120" width="220" height="52" rx="9" fill="#1E4638" stroke="#1E4638"/>
+        <text x="140" y="144" text-anchor="middle" font-size="13" font-weight="700" fill="#F2F5F3">ViewModel</text>
+        <text x="140" y="162" text-anchor="middle" font-size="11" fill="#C3D8CD">状态 · 编排 · 异步</text>
+        <text x="420" y="152" text-anchor="middle" font-size="16" font-weight="700" fill="#8A6D2F">≡</text>
+        <rect x="610" y="120" width="220" height="52" rx="9" fill="#2B4A7D" stroke="#2B4A7D"/>
+        <text x="720" y="144" text-anchor="middle" font-size="13" font-weight="700" fill="#F2F5F3">Service 层</text>
+        <text x="720" y="162" text-anchor="middle" font-size="11" fill="#C3D0E3">业务编排 · 事务边界</text>
+        <text x="440" y="186" text-anchor="middle" font-size="11" fill="#7C857F">业务逻辑的唯一归属地</text>
+
+        <!-- 行 3 -->
+        <rect x="30" y="202" width="220" height="52" rx="9" fill="#FBEBE3" stroke="#C0522B"/>
+        <text x="140" y="226" text-anchor="middle" font-size="13" font-weight="700" fill="#A8451F">Repository</text>
+        <text x="140" y="244" text-anchor="middle" font-size="11" fill="#4A534E">数据门面</text>
+        <text x="420" y="234" text-anchor="middle" font-size="16" font-weight="700" fill="#8A6D2F">≡</text>
+        <rect x="610" y="202" width="220" height="52" rx="9" fill="#FBEBE3" stroke="#C0522B"/>
+        <text x="720" y="226" text-anchor="middle" font-size="13" font-weight="700" fill="#A8451F">Repository / CRUD</text>
+        <text x="720" y="244" text-anchor="middle" font-size="11" fill="#4A534E">屏蔽数据来源</text>
+        <text x="440" y="268" text-anchor="middle" font-size="11" fill="#7C857F">上层不知道数据存在哪</text>
+
+        <!-- 行 4 -->
+        <rect x="30" y="284" width="220" height="52" rx="9" fill="#fff" stroke="#C3D8CD"/>
+        <text x="140" y="308" text-anchor="middle" font-size="13" font-weight="700" fill="#1E4638">Room / AlarmManager</text>
+        <text x="140" y="326" text-anchor="middle" font-size="11" fill="#4A534E">真实 IO</text>
+        <text x="420" y="316" text-anchor="middle" font-size="16" font-weight="700" fill="#8A6D2F">≡</text>
+        <rect x="610" y="284" width="220" height="52" rx="9" fill="#fff" stroke="#BFCCE0"/>
+        <text x="720" y="308" text-anchor="middle" font-size="13" font-weight="700" fill="#2B4A7D">SQLAlchemy / DB</text>
+        <text x="720" y="326" text-anchor="middle" font-size="11" fill="#4A534E">真实 IO</text>
+
+        <!-- 行 5 -->
+        <rect x="30" y="366" width="220" height="52" rx="9" fill="#F6EDD6" stroke="#E0CE9E"/>
+        <text x="140" y="390" text-anchor="middle" font-size="13" font-weight="700" fill="#8A6D2F">UiState（data class）</text>
+        <text x="140" y="408" text-anchor="middle" font-size="11" fill="#4A534E">边界契约 · 不可变</text>
+        <text x="420" y="398" text-anchor="middle" font-size="16" font-weight="700" fill="#8A6D2F">≡</text>
+        <rect x="610" y="366" width="220" height="52" rx="9" fill="#F6EDD6" stroke="#E0CE9E"/>
+        <text x="720" y="390" text-anchor="middle" font-size="13" font-weight="700" fill="#8A6D2F">Pydantic Schema</text>
+        <text x="720" y="408" text-anchor="middle" font-size="11" fill="#4A534E">边界契约</text>
+
+        <text x="140" y="440" text-anchor="middle" font-size="11.5" fill="#7C857F">AppContainer（手动 DI）</text>
+        <text x="720" y="440" text-anchor="middle" font-size="11.5" fill="#7C857F">Depends()（依赖注入）</text>
+        <text x="430" y="462" text-anchor="middle" font-size="11.5" fill="#7C857F">连"依赖注入"这一步都是对应的 —— 装配方式不同，目的都是"让上层不负责 new"</text>
+      </g>
+    </svg>
+    </div>
+    <figcaption><b>图 5-1</b>　两端分层塔。<b>层数一致、职责一致、依赖方向一致。</b>你今天在 Android 上学到的分层直觉，写 FastAPI 时是同一把尺子。</figcaption>
+  </figure>
+
+  <div class="callout rule">
+    <span class="ct">这也解释了一件事</span>
+    <p>为什么"会一层就能触类旁通"？因为这些分层不是某个框架的发明，而是<b>对同一类复杂度的同一种收敛</b>：<br>
+    ① 把变化频繁的（UI / 协议）关在最外层；<br>
+    ② 把稳定的（业务规则）放在中间；<br>
+    ③ 把不可控的（DB / 网络 / 系统）关在最内层并加门面。<br>
+    无论前端后端移动端，只要复杂度长这样，分层就长这样。</p>
+  </div>
+</section>
+
+<!-- ---------- 第六章 ---------- -->
+<section id="ch6">
+  <div class="chapter-head">
+    <span class="num">第二讲 · CHAPTER Ⅱ</span>
+    <h2>2026：Signals 的范式收敛</h2>
+    <p class="lead">图 4-1 的下层那一格（细粒度信号），在 2026 年完成了一次全行业收敛。这是你职业生涯里能遇到的、为数不多的"范式级变化"。</p>
+  </div>
+
+  <h3>6.1 各框架走到哪一步了</h3>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 6-1　2026 年前端框架 Signals 采用情况（多源交叉核对，2026-09）</div>
+    <table>
+      <thead><tr><th style="width:16%">框架</th><th style="width:34%">响应式方案</th><th style="width:26%">关键变化</th><th>备注</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>SolidJS</b></td>
+          <td><code>createSignal</code> / <code>createMemo</code> / <code>createEffect</code></td>
+          <td>无 VDOM，编译期直出 DOM 操作</td>
+          <td>作者 Ryan Carniato 直接参与 TC39 委员会，被认为"形态最接近提案原貌"</td>
+        </tr>
+        <tr>
+          <td><b>Svelte 5</b></td>
+          <td>Runes：<code>$state</code> / <code>$derived</code> / <code>$effect</code></td>
+          <td>编译期转换，运行时代码几乎消失</td>
+          <td>Runes 也能用在 <code>.svelte.js</code> 文件里，<b>状态不必困在组件内</b></td>
+        </tr>
+        <tr>
+          <td><b>Vue</b></td>
+          <td><code>ref</code> / <code>computed</code>（自 Vue 3 起就有）</td>
+          <td><b>Vapor Mode</b>：编译期把模板转成直接 DOM 操作，跳过 VDOM</td>
+          <td>细粒度响应式的最早实践者之一。Vapor 自 3.6 起以预览形态提供，后续版本继续推进（<span style="color:#C0522B">具体版本节奏待官方确认</span>）</td>
+        </tr>
+        <tr>
+          <td><b>Angular 20</b></td>
+          <td><code>signal()</code> / <code>computed()</code> / <code>effect()</code></td>
+          <td><b>弃用 zone.js</b>，改为 zoneless 变更检测</td>
+          <td>从"每个事件脏检查整棵树"变成"只更新绑定了该信号的节点"，Angular 团队直接参与提案设计</td>
+        </tr>
+        <tr>
+          <td><b>Preact</b></td>
+          <td><code>@preact/signals</code> 官方一等公民</td>
+          <td>约 3KB gzip，也提供 React 适配版</td>
+          <td>表态最早跟进 TC39 标准</td>
+        </tr>
+        <tr style="background:#FCFBF8">
+          <td><b style="color:#C0522B">React 19</b></td>
+          <td><b>不改响应式模型</b></td>
+          <td><b>React Compiler</b> 编译期自动插 memo + <b>RSC</b> 服务端组件</td>
+          <td>唯一例外。生态护城河最深（ npm 生态规模远大于其余框架）</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>6.2 基准数据：看趋势，别看绝对值</h3>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 6-2　社区引用基准（js-framework-benchmark "创建 1000 行" 场景 + Lighthouse）</div>
+    <table>
+      <thead><tr><th style="width:20%">框架</th><th style="width:22%">ops/s（越高越好）</th><th style="width:20%">包体积（约）</th><th style="width:16%">Lighthouse（约）</th><th>读法</th></tr></thead>
+      <tbody>
+        <tr><td>SolidJS</td><td><b>42.8</b></td><td>~30KB</td><td>98</td><td rowspan="5" style="vertical-align:middle">这些数字<b>口径与版本强相关</b>，只能看趋势不能当验收指标。<br><br>真正该记住的是差距的量级：<b>最快与最慢约 2 倍</b>——在绝大多数业务场景里，这个差距<b>不构成瓶颈</b>。<br><br>数据来源：js-framework-benchmark（Stefan Krause）及社区引用的 Lighthouse 实测，2025–2026 期间。</td></tr>
+        <tr><td>Svelte 5</td><td>39.5</td><td>~28KB</td><td>96</td></tr>
+        <tr><td>Vue 4</td><td>31.2</td><td>~58KB</td><td>94</td></tr>
+        <tr><td>React 19</td><td>28.4</td><td>~72KB</td><td>92</td></tr>
+        <tr><td>Angular 20</td><td>22.1</td><td>~85KB</td><td>88</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>6.3 标准化进度：不要在生产上建在提案上</h3>
+
+  <div class="callout pit">
+    <span class="ct">TC39 Signals 提案的真实状态（截至 2026-08）</span>
+    <p><b>仍是 Stage 1。</b>2024 年 4 月进入 Stage 1，此后<b>两年多未申请进入 Stage 2</b>；提案仓库主分支最后一次提交停留在 2025-08；参考实现 <code>signal-polyfill</code> 停在 0.2.2（2025-01）。<b>没有任何 JS 引擎原生实现它。</b></p>
+    <p>API 面只有三个东西：<code>Signal.State</code>（可写单元）、<code>Signal.Computed</code>（惰性记忆化派生）、<code>Signal.subtle.Watcher</code>（给框架用的底层钩子）。<br><b>故意不包含 <code>effect()</code></b> —— 调度、批处理、渲染集成全部留给框架。理由很漂亮：<b>语言拥有依赖图，框架拥有调度策略。</b></p>
+    <p style="color:#C0522B"><b>结论：把它当作"行业对答案形状达成了一致"的验证，而不是"今年就能用上的东西"。生产代码请写框架自带的成熟实现。</b></p>
+  </div>
+
+  <h3 id="ch6-4">6.4 React 为什么说不：一个值得收藏的架构权衡案例</h3>
+
+  <p>React 是全球最大的前端生态，它偏偏没跟 Signals。这不是落后，是一次<b>公开论证过的、有意识的取舍</b>。</p>
+
+  <blockquote>
+    React 的立场大致是：<b>"React 本身就是 signals 所解决的那个问题的解决方案。"</b><br>
+    在 React 之前，细粒度响应式（Knockout、早期 Angular）意味着<b>手工接线</b>哪个依赖哪个，bug 就住在接线里。React 的主张是：别管依赖了，把 UI 描述成状态的函数，让框架去算更新。<br>
+    而在 Signals 模型里，你必须<b>预先决定</b>什么是 state、什么是 derived、什么是 effect，还得把代码从内到外地组织起来才能保住那张依赖图。
+    <cite>—— 社区对 React 团队（Dan Abramov 等）公开论证的转述，非原文引用</cite>
+  </blockquote>
+
+  <div class="duo">
+    <div>
+      <h5><span class="badge good">Signals 阵营</span> 显式依赖图</h5>
+      <p>优点：更新精确到值，无需 memo/依赖数组，没有闭包过期问题。</p>
+      <p>代价：<b>开发者要预先分类状态</b>，且在条件分支里声明信号时语义会变模糊。</p>
+    </div>
+    <div>
+      <h5><span class="badge bad">React 阵营</span> 一切默认响应式</h5>
+      <p>优点：心智模型简单，"computed"只是可选优化而非必须。</p>
+      <p>代价：需要 Compiler 在编译期补 memo 来追平性能；运行时仍落后约 30%。</p>
+    </div>
+  </div>
+
+  <div class="callout key">
+    <span class="ct">架构师视角：这不是技术之争，是"存量资产"之争</span>
+    <p>React 有全世界最大的存量代码库。改心智模型 = 让 2000 万开发者重写一遍脑子，这个代价它付不起。所以宁可用编译器去逼近 Signals 的性能，也要保住 API 兼容。<br>
+    <b>判断这类问题时，永远先问"改这个决定的迁移成本由谁承担"。</b>技术优越性在迁移成本面前经常不是决定性因素——这一条对你以后做技术选型非常有用。</p>
+  </div>
+
+  <h3>6.5 诚实地说：Signals 不是万能的</h3>
+
+  <div class="tbl-wrap">
+    <div class="tbl-title">表 6-3　Signals 不奏效或收益有限的场景</div>
+    <table>
+      <thead><tr><th style="width:26%">场景</th><th>为什么</th></tr></thead>
+      <tbody>
+        <tr><td><b>服务端渲染（SSR）</b></td><td>信号需要运行时的依赖追踪基础设施，在 SSR 上下文里是额外开销；一些框架在服务端改用渲染函数</td></tr>
+        <tr><td><b>调试复杂度</b></td><td>隐式的依赖追踪会让"这个 effect 为什么又触发了"变得难查；React 那种"整棵树重渲染"虽然浪费，但更好推理</td></tr>
+        <tr><td><b>简单状态</b></td><td>一个开关、一个计数，用 signal 反而比 <code>useState</code> 啰嗦。收益在规模化后才显现（几十个字段的表单、实时仪表盘）</td></tr>
+        <tr><td><b>生态成熟度</b></td><td>Signals 优先的框架，第三方库数量与 React 差距明显；大团队从零起步时这是真实风险</td></tr>
+        <tr><td><b>服务端状态管理</b></td><td>见第 4.3 节 —— 这根本不属于 Signals 的职责范围，得靠 TanStack Query 等专门方案</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>6.6 行业共识：真正的收益是可维护性，不是性能</h3>
+
+  <blockquote>
+    Signals 消灭的不是渲染开销，而是 <code>memo</code> / <code>useMemo</code> / <code>useCallback</code> / 依赖数组 / 闭包过期这一整类复杂度。<b>那些东西的本质是手工维护依赖图，而 Signals 让依赖图自动长出来。</b>
+    <cite>—— 多篇 2026 年前端展望的共同结论</cite>
+  </blockquote>
+
+  <p>因此社区给出的一致性建议是：</p>
+  <ol class="steps">
+    <li><b>新项目首选 signals 系</b><span>迁移成本为零，直接享受心智负担的下降。</span></li>
+    <li><b>老项目"必须迁移"几乎从不是路线图上最高价值的事</b><span>尤其是已经在跑、能赚钱的项目。把架构纯粹性排在真实 bug 前面，通常是个错误。</span></li>
+    <li><b>选型随场景分化</b><span>内容站 / 全栈 → Next.js（RSC）；中后台 → Vue + Nuxt（遇到性能瓶颈再开 Vapor）；高交互实时仪表盘 → Solid 或 Svelte。元框架（Next / Nuxt / SvelteKit / Astro）已成为新建项目的默认起点。</span></li>
+  </ol>
+</section>
+
+<!-- ---------- 第七章 ---------- -->
+<section id="ch7">
+  <div class="chapter-head">
+    <span class="num">收束 · CLOSING</span>
+    <h2>可带走的三条思想，与三条忠告</h2>
+    <p class="lead">如果这份教材你只记住一页，就记这一页。</p>
+  </div>
+
+  <h3>可带走的三条思想</h3>
+
+  <ol class="steps">
+    <li><b>状态应该活得比 UI 久，且不该由 UI 持有</b><span>这是 MVVM、Flux、Signals、乃至服务端 session 设计的共同底层逻辑。凡是"刷新一下就没了但你希望它还在"的东西，都属于这一层。这条能迁移到任何端、任何框架。</span></li>
+    <li><b>依赖方向要单向，且越界的代价要尽量高</b><span>单向数据流不是为了好看，是为了让"当前界面对不对"变成一个可推理的纯函数。能下沉到编译器检查的约束（如 <code>StateFlow</code> 对外只读）才是真约束。</span></li>
+    <li><b>能算的别存，能约束在存储层的别留给逻辑层</b><span>派生状态用 <code>combine</code>；跨午夜在编辑器拆成两条而不是在引擎里写 wrap-around 分支。<b>把复杂度前移到数据模型，后面的代码会成片地变简单。</b></span></li>
+  </ol>
+
+  <h3>三条忠告</h3>
+
+  <div class="callout rule">
+    <span class="ct">一 · 一套学透，别追名词</span>
+    <p>Pinia、Zustand、Signals、Runes 看着五花八门，落到你的心智里就一句：<b>"状态从 UI 里挪出来，UI 订阅状态"</b>。剩下的都是语法差异。追新名词而基础不牢，是初级到中级最常见的消耗陷阱。</p>
+  </div>
+
+  <div class="callout pit">
+    <span class="ct">二 · 判断架构好坏的尺子只有一把</span>
+    <p><b>改一个需求，要动几个地方？</b><br>
+    今天那个"屏保 Tab 新建、默认域却是桌面"的 bug，本质就是状态归属没想清楚——首页的"当前 Tab"这个状态没有打通到编辑器，只能在层与层之间用参数硬传。<b>这类 bug 在 Web 里同样是最高频的一类。</b><br>
+    所以：动手画"状态归属表"的时间，永远是值得的。</p>
+  </div>
+
+  <div class="callout web">
+    <span class="ct">三 · 别急着重写老项目</span>
+    <p>行业对 Signals 的主流建议就是"新项目用、老项目不急"。你的 Screensaver 已经能跑——为架构纯粹性去返工，性价比通常低于修掉一个真实 bug。<br>
+    <b>例外只有一种：当架构问题已经在持续产生 bug 时，它就不是纯粹性问题，而是成本问题了。</b></p>
+  </div>
+
+  <h3>如果你还想往下走</h3>
+  <p>按"投入产出比"排序的三个方向，任选：</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th style="width:24%">方向</th><th style="width:38%">做什么</th><th>能练到什么</th></tr></thead>
+      <tbody>
+        <tr><td><b>拿 FastAPI 练分层</b></td><td>挑一个你写过的接口，按 router → service → repository → schema 重拆一遍</td><td>第 5 章的分层塔。改动前后对比"加一个字段要动几个文件"</td></tr>
+        <tr><td><b>深入 combine 与 stateIn</b></td><td>把 <code>WhileSubscribed(5000)</code> 的订阅取消时机彻底搞清楚，顺带理解背压</td><td>响应式流的生命周期管理，这是中高级的分水岭</td></tr>
+        <tr><td><b>给 Screensaver 补一层</b></td><td>把"当前生效规则"的推导链路完整画成图（DB 流 → resolve → StateFlow → UI）</td><td>端到端数据流的追踪能力，也是排查线上问题的基本功</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ---------- 附录 ---------- -->
+<section id="appx">
+  <div class="chapter-head">
+    <span class="num">附录 · APPENDIX</span>
+    <h2>术语速查与代码索引</h2>
+  </div>
+
+  <h3>术语速查</h3>
+  <dl class="gloss">
+    <div><dt>MVC</dt><dd>Model / View / Controller。只规定角色，不规定物理边界——这是它所有问题的源头。</dd></div>
+    <div><dt>MVVM</dt><dd>Model / View / ViewModel。核心增量是 ViewModel 这个"活得比 View 久的状态宿主"。</dd></div>
+    <div><dt>UDF（单向数据流）</dt><dd>事件向上、状态向下，方向不可逆。可预测性的来源。</dd></div>
+    <div><dt>StateFlow</dt><dd>有初值 / 只留最新 / equals 去重的<strong>粗粒度</strong>状态容器，需显式 collect。</dd></div>
+    <div><dt>SharedFlow</dt><dd>不留存历史的一次性事件通道，用于 Toast / 导航 / 提示。</dd></div>
+    <div><dt>Signal（信号）</dt><dd><strong>细粒度</strong>响应式单元：读即订阅，依赖图自动生成。Web 侧的正名运动，2026 年完成收敛。</dd></div>
+    <div><dt>store</dt><dd>Web 侧的跨组件共享状态容器，等价于 Android 的 ViewModel + StateFlow。</dd></div>
+    <div><dt>Server State</dt><dd>所有权在远端、会过期的数据。与 Client State 分开管理，是现代前端架构的关键分野。</dd></div>
+    <div><dt>派生状态</dt><dd>由其他状态算出来的状态，不落库、不缓存，随源自动重算（<code>combine</code>）。</dd></div>
+    <div><dt>TC39</dt><dd>负责 ECMAScript 标准的技术委员会。Stage 1 = 官方开始讨论，远未定型。</dd></div>
+    <div><dt>RSC</dt><dd>React Server Components，把组件与数据获取搬到服务端，客户端包体积显著下降。</dd></div>
+    <div><dt>元框架</dt><dd>Next / Nuxt / SvelteKit / Astro 等"框架之上的框架"，2026 年已成新建项目默认起点。</dd></div>
+  </dl>
+
+  <h3>本教材引用的项目代码索引</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th style="width:46%">文件</th><th>在教材中的位置</th></tr></thead>
+      <tbody>
+        <tr><td><code>ui/screens/HomeScreen.kt</code></td><td>图 2-1 的订阅与事件上报；2.4 节坑二（ON_RESUME 通知 ViewModel）</td></tr>
+        <tr><td><code>ui/viewmodel/HomeViewModel.kt</code></td><td>2.2 节派生状态与 <code>WhileSubscribed(5000)</code>；2.3 节私有/只读双通道</td></tr>
+        <tr><td><code>ui/viewmodel/RuleEditorViewModel.kt</code></td><td>2.4 节坑一：StateFlow 与 SharedFlow 双通道</td></tr>
+        <tr><td><code>ui/MainActivity.kt</code></td><td>4.3 节：状态编码进路由 + 枚举兜底</td></tr>
+        <tr><td><code>domain/scheduler/ScheduleEngine.kt</code></td><td>3.1 节：纯函数层、剪开拉直模型、null 表达业务语义</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>资料来源说明</h3>
+  <p style="font-size:14.5px;color:var(--ink-2)">第 6 章的行业现状经过多源交叉核对，主要包括：TC39 <code>proposal-signals</code> 仓库与其 stage 状态追踪、js-framework-benchmark（Stefan Krause）基准数据、各框架官方博客与发布说明，以及 2026 年前端生态综述类文章。</p>
+  <ul style="font-size:14.5px;color:var(--ink-2);line-height:1.9">
+    <li><b>已交叉验证</b>：TC39 Signals 截至 2026-08 仍为 Stage 1、提案仓库 2025-08 后停更、无引擎原生实现；Angular 20 转向 zoneless + Signals；Svelte 5 Runes；Vue Vapor Mode 跳过 VDOM；React 19 采用 Compiler 而非改响应式模型。</li>
+    <li><b>标注待确认</b>：Vue Vapor Mode 的具体版本节奏（有 3.6 预览与 Vue 4 两种口径来源），已按保守表述处理。</li>
+    <li><b>口径提醒</b>：表 6-2 的基准数据随版本与测试环境波动较大，本教材只用于说明"量级与趋势"，不作为选型验收指标。</li>
+  </ul>
+</section>
+
+<!-- ---------- 页尾 ---------- -->
+<footer>
+  <div class="f-main">
+    <span><b>Agent 平台</b>　WorkBuddy</span>
+    <span><b>LLM 基座</b>　混元（Hy4）</span>
+    <span><b>编排日期</b>　2026-09-01</span>
+    <span><b>案例项目</b>　Screensaver（定时壁纸 · Android）</span>
+  </div>
+  <div class="note">
+    本教材由对话内容提炼编排而成，代码取自项目真实源码并已逐行核对；行业数据经多源交叉验证，不确定项已标注"待确认"。<br>
+    教材内容仅供学习参考，技术选型请结合项目实际情况与官方文档独立判断。
+  </div>
+</footer>
+
+</main>
+</div>
+
+<script>
+/* ---- 阅读进度条 ---- */
+(function(){
+  var bar = document.getElementById('progress');
+  function upd(){
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    bar.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + '%';
+  }
+  document.addEventListener('scroll', upd, {passive:true});
+  window.addEventListener('resize', upd);
+  upd();
+})();
+
+/* ---- 目录 scrollspy ---- */
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+  var targets = links.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+  function spy(){
+    var best = 0, i;
+    for (i = 0; i < targets.length; i++){
+      if (targets[i] && targets[i].getBoundingClientRect().top <= 120) best = i;
+    }
+    links.forEach(function(a, idx){ a.classList.toggle('active', idx === best); });
+  }
+  document.addEventListener('scroll', spy, {passive:true});
+  spy();
+})();
+</script>
+
+</body>
+</html>

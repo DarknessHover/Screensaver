@@ -1,0 +1,5 @@
+<resources>
+    <!-- 品牌主色（对齐 Theme.kt #3A5BDB）：用于桌面图标背景 + 启动闪屏窗口背景 -->
+    <color name="brand_primary">#3A5BDB</color>
+    <color name="ic_launcher_background">#3A5BDB</color>
+</resources>
